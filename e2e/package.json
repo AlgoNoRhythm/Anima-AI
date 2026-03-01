@@ -1,0 +1,18 @@
+{
+  "name": "@anima-ai/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "echo 'Run e2e tests with: pnpm e2e (from root). Skipping in turbo.'",
+    "e2e": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@types/pg": "^8.11.10",
+    "pg": "^8.13.1"
+  }
+}

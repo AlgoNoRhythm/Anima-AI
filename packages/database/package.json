@@ -1,0 +1,30 @@
+{
+  "name": "@anima-ai/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx --env-file-if-exists=../../.env --env-file-if-exists=../../.env.local src/migrate.ts",
+    "db:seed": "tsx --env-file-if-exists=../../.env --env-file-if-exists=../../.env.local src/seed.ts",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@anima-ai/shared": "workspace:*",
+    "drizzle-orm": "^0.36.4",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.10",
+    "drizzle-kit": "^0.29.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

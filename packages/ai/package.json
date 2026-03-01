@@ -1,0 +1,27 @@
+{
+  "name": "@anima-ai/ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@anima-ai/database": "workspace:*",
+    "@anima-ai/shared": "workspace:*",
+    "ai": "^4.0.38",
+    "@ai-sdk/openai": "^1.0.13",
+    "@ai-sdk/anthropic": "^1.0.7",
+    "drizzle-orm": "^0.36.4"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.8",
+    "typescript": "^5.7.3"
+  }
+}

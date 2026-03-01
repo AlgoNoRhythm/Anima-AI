@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+
+  valkey:
+    ports:
+      - "6379:6379"
+
+  docling:
+    volumes:
+      - ../apps/docling-service:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  worker:
+    volumes:
+      - ../apps/worker/src:/app/apps/worker/src
+      - ../packages:/app/packages
+    command: pnpm --filter @anima-ai/worker dev
+
+  chat-api:
+    volumes:
+      - ../apps/chat-api/src:/app/apps/chat-api/src
+      - ../packages:/app/packages
+    command: pnpm --filter @anima-ai/chat-api dev
+
+  web:
+    volumes:
+      - ../apps/web/src:/app/apps/web/src
+      - ../packages:/app/packages
+    command: pnpm --filter @anima-ai/web dev

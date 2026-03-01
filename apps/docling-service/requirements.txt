@@ -1,0 +1,6 @@
+docling>=2.5.0
+fastapi>=0.115.0
+uvicorn>=0.34.0
+python-multipart>=0.0.18
+pytest>=8.3.0
+httpx>=0.28.0

@@ -1,0 +1,26 @@
+FROM node:20-alpine AS base
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+
+FROM base AS deps
+WORKDIR /app
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY apps/chat-api/package.json ./apps/chat-api/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/database/package.json ./packages/database/
+COPY packages/cache/package.json ./packages/cache/
+COPY packages/ai/package.json ./packages/ai/
+RUN pnpm install --frozen-lockfile
+
+FROM base AS runner
+WORKDIR /app
+COPY --from=deps /app ./
+COPY apps/chat-api ./apps/chat-api
+COPY packages ./packages
+COPY tsconfig.base.json ./
+RUN pnpm install --frozen-lockfile
+
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
+
+EXPOSE 3001
+USER nextjs
+CMD ["pnpm", "--filter", "@anima-ai/chat-api", "start"]

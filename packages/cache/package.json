@@ -1,0 +1,23 @@
+{
+  "name": "@anima-ai/cache",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@anima-ai/shared": "workspace:*",
+    "ioredis": "^5.4.2"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.8",
+    "typescript": "^5.7.3"
+  }
+}

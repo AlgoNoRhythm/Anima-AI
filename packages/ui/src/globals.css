@@ -1,0 +1,151 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 14% 98%;
+    --foreground: 0 0% 18%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 18%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 18%;
+    --primary: 48 94% 48%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 220 10% 95%;
+    --secondary-foreground: 0 0% 18%;
+    --muted: 220 10% 94%;
+    --muted-foreground: 0 0% 55%;
+    --accent: 220 10% 95%;
+    --accent-foreground: 0 0% 18%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 40 8% 90%;
+    --input: 40 8% 90%;
+    --ring: 48 94% 48%;
+    --radius: 0.625rem;
+    --shadow-color: 0 0% 0%;
+
+    /* Gold accent */
+    --gold: 42 48% 57%;
+    --gold-light: 45 55% 65%;
+    --gold-dark: 40 50% 45%;
+    --gold-muted: 42 25% 70%;
+
+    /* Chat interface tokens — derived from primary (#eab308) */
+    --chat-bg: 220 14% 98%;
+    --chat-surface: 0 0% 100%;
+    --chat-user: 48 94% 48%;
+    --chat-user-fg: 0 0% 9%;
+    --chat-assistant: 48 25% 93%;
+    --chat-accent: 48 94% 48%;
+    --chat-accent-fg: 0 0% 9%;
+    --chat-muted: 0 0% 55%;
+    --chat-border: 48 12% 90%;
+  }
+
+  .dark {
+    --background: 240 6% 6%;
+    --foreground: 30 10% 97%;
+    --card: 240 5% 9%;
+    --card-foreground: 30 10% 97%;
+    --popover: 240 5% 9%;
+    --popover-foreground: 30 10% 97%;
+    --primary: 48 94% 53%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 240 5% 14%;
+    --secondary-foreground: 30 10% 97%;
+    --muted: 240 5% 14%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 240 5% 14%;
+    --accent-foreground: 30 10% 97%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5% 16%;
+    --input: 240 5% 16%;
+    --ring: 48 94% 53%;
+    --shadow-color: 43 50% 10%;
+
+    --gold: 42 48% 57%;
+    --gold-light: 45 55% 65%;
+    --gold-dark: 40 50% 45%;
+    --gold-muted: 42 25% 50%;
+
+    --chat-bg: 240 6% 6%;
+    --chat-surface: 240 5% 12%;
+    --chat-user: 48 94% 53%;
+    --chat-user-fg: 0 0% 9%;
+    --chat-assistant: 48 15% 18%;
+    --chat-accent: 48 94% 53%;
+    --chat-accent-fg: 0 0% 9%;
+    --chat-muted: 0 0% 50%;
+    --chat-border: 48 10% 20%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .shadow-elevated {
+    box-shadow:
+      0 1px 2px hsl(var(--shadow-color) / 0.04),
+      0 3px 6px hsl(var(--shadow-color) / 0.06),
+      0 6px 12px hsl(var(--shadow-color) / 0.04);
+  }
+  .shadow-elevated-lg {
+    box-shadow:
+      0 2px 4px hsl(var(--shadow-color) / 0.04),
+      0 8px 16px hsl(var(--shadow-color) / 0.08),
+      0 16px 32px hsl(var(--shadow-color) / 0.04);
+  }
+  .shadow-elevated-xl {
+    box-shadow:
+      0 4px 8px hsl(var(--shadow-color) / 0.04),
+      0 12px 24px hsl(var(--shadow-color) / 0.1),
+      0 24px 48px hsl(var(--shadow-color) / 0.06);
+  }
+  .shadow-soft {
+    box-shadow: 0 1px 3px hsl(var(--shadow-color) / 0.06);
+  }
+  .shadow-gold {
+    box-shadow:
+      0 1px 3px hsl(42 48% 57% / 0.12),
+      0 4px 12px hsl(42 48% 57% / 0.08);
+  }
+  .shadow-gold-lg {
+    box-shadow:
+      0 2px 6px hsl(42 48% 57% / 0.15),
+      0 8px 24px hsl(42 48% 57% / 0.12);
+  }
+  .border-gold-subtle {
+    border-color: hsl(42 48% 57% / 0.2);
+  }
+  .gold-gradient {
+    background: linear-gradient(135deg, hsl(42 48% 57%), hsl(45 55% 65%));
+  }
+  .gold-gradient-text {
+    background: linear-gradient(135deg, hsl(40 50% 45%), hsl(42 48% 57%), hsl(45 55% 65%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .text-gold {
+    color: hsl(var(--gold));
+  }
+  .bg-gold {
+    background-color: hsl(var(--gold));
+  }
+  .bg-gold-light {
+    background-color: hsl(var(--gold-light));
+  }
+  .ring-gold {
+    --tw-ring-color: hsl(var(--gold));
+  }
+}
