@@ -43,6 +43,8 @@ export default async function ThemePage({
           logoUrl,
           borderRadius: theme.borderRadius,
           actionButtonLabel: theme.actionButtonLabel,
+          suggestedQuestions: (theme.suggestedQuestions as string[]) ?? [],
+          translations: (theme.translations as Record<string, Record<string, unknown>>) ?? {},
         } : null}
       />
     </div>

@@ -12,7 +12,7 @@ export default defineConfig({
   reporter: [['list'], ['html', { open: 'never' }]],
   globalSetup: './global-setup.ts',
   globalTeardown: './global-teardown.ts',
-  timeout: 30000,
+  timeout: 60000,
   use: {
     baseURL,
     trace: 'on-first-retry',

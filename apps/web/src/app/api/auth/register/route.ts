@@ -50,7 +50,7 @@ export async function POST(request: Request) {
       }
     }
 
-    if (userCount > 0 && !invitation) {
+    if (userCount > 0 && !invitation && process.env.ALLOW_OPEN_REGISTRATION !== 'true') {
       return NextResponse.json({ error: 'Registration is disabled' }, { status: 403 });
     }
 

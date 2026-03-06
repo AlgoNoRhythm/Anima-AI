@@ -13,6 +13,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@anima-ai/cache": "workspace:*",
     "@anima-ai/database": "workspace:*",
     "@anima-ai/shared": "workspace:*",
     "ai": "^4.0.38",

@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, jsonb, real, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, jsonb, real, boolean, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { DEFAULT_MODEL_PROVIDER, DEFAULT_MODEL_NAME } from '@anima-ai/shared';
 import { projects } from './projects';
 
@@ -15,6 +15,9 @@ export const personalities = pgTable('personalities', {
   showDisclaimer: boolean('show_disclaimer').notNull().default(true),
   disclaimerText: text('disclaimer_text').notNull().default('AI-generated responses may contain inaccuracies. Please verify important information.'),
   enableImageSupport: boolean('enable_image_support').notNull().default(false),
+  translations: jsonb('translations').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  uniqueIndex('personalities_project_id_idx').on(table.projectId),
+]);

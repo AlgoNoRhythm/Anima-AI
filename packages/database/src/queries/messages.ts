@@ -5,19 +5,22 @@ import type { Database } from '../client';
 export function messageQueries(db: Database) {
   return {
     async create(data: {
+      id?: string;
       sessionId: string;
       role: 'user' | 'assistant' | 'system';
       content: string;
       citations?: unknown[];
     }) {
+      const values: Record<string, unknown> = {
+        sessionId: data.sessionId,
+        role: data.role,
+        content: data.content,
+        citations: data.citations ?? [],
+      };
+      if (data.id) values.id = data.id;
       const rows = await db
         .insert(messages)
-        .values({
-          sessionId: data.sessionId,
-          role: data.role,
-          content: data.content,
-          citations: data.citations ?? [],
-        })
+        .values(values as typeof messages.$inferInsert)
         .returning();
       return rows[0]!;
     },

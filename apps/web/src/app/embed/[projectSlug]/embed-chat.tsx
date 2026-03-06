@@ -1,9 +1,18 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { ArrowUp, FileText, ArrowRight } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { ArrowUp, FileText, ChevronDown } from 'lucide-react';
 import { ChatMarkdown } from '@anima-ai/ui';
 import { useChat } from '@/lib/hooks/use-chat';
+import { FeedbackForm } from '../../c/[projectSlug]/feedback-form';
+import type { FeedbackConfig } from '../../c/[projectSlug]/feedback-form';
+import type { ChatUITranslations, SupportedLocale } from '@/lib/locale/types';
+
+interface EmbedDocumentInfo {
+  id: string;
+  title: string;
+  totalPages: number;
+}
 
 interface EmbedChatProps {
   projectSlug: string;
@@ -13,6 +22,10 @@ interface EmbedChatProps {
   suggestedQuestions?: string[];
   logoUrl?: string | null;
   primaryColor?: string;
+  documents?: EmbedDocumentInfo[];
+  feedbackConfig?: FeedbackConfig | null;
+  t?: ChatUITranslations;
+  locale?: SupportedLocale;
 }
 
 function BotAvatar({ logoUrl, primaryColor, name, size = 28 }: { logoUrl?: string | null; primaryColor?: string; name: string; size?: number }) {
@@ -60,11 +73,34 @@ export function EmbedChat({
   suggestedQuestions,
   logoUrl,
   primaryColor,
+  documents = [],
+  feedbackConfig,
+  t,
+  locale,
 }: EmbedChatProps) {
-  const { messages, isLoading, error, send, submitFeedback } = useChat(projectSlug);
-  const [input, setInput] = useState('');
+  const { messages, isLoading, error, send, submitFeedback, getSessionToken } = useChat(projectSlug, t);
+  const [showFeedbackForm, setShowFeedbackForm] = useState(false);
+
+  // Offset map for absolute page numbering across stacked documents
+  const offsetMap = useMemo(() => {
+    const map: { documentId: string; startPage: number; pageCount: number }[] = [];
+    let cumulative = 0;
+    for (const doc of documents) {
+      map.push({ documentId: doc.id, startPage: cumulative + 1, pageCount: doc.totalPages });
+      cumulative += doc.totalPages;
+    }
+    return map;
+  }, [documents]);
+
+  function toAbsolutePage(documentId: string, pageWithinDoc: number): number {
+    const entry = offsetMap.find((e) => e.documentId === documentId);
+    if (!entry) return pageWithinDoc;
+    return entry.startPage + pageWithinDoc - 1;
+  }
+  const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [ratings, setRatings] = useState<Record<string, 'positive' | 'negative'>>({});
+  const [expandedCitations, setExpandedCitations] = useState<Record<string, boolean>>({});
 
   const displayName = personality?.name || projectName;
 
@@ -83,9 +119,9 @@ export function EmbedChat({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const trimmed = input.trim();
+    const trimmed = inputRef.current?.value.trim() ?? '';
     if (!trimmed || isLoading) return;
-    setInput('');
+    if (inputRef.current) inputRef.current.value = '';
     send(trimmed);
   }
 
@@ -119,7 +155,7 @@ export function EmbedChat({
               )}
               <p className="text-sm font-medium text-foreground">{welcomeMessage}</p>
               <p className="text-xs text-chat-muted mt-0.5">
-                {personality?.name || 'Powered by Anima AI'}
+                {personality?.name || (t?.poweredBy ?? 'Powered by Anima AI')}
               </p>
 
               {/* Suggested questions — pill chips */}
@@ -166,19 +202,33 @@ export function EmbedChat({
                     <ChatMarkdown content={msg.content} />
                   )}
                   {msg.citations && msg.citations.length > 0 && (
-                    <div className="mt-2 space-y-1 border-t border-foreground/8 pt-1.5">
-                      <p className="text-[10px] text-chat-muted">Sources</p>
-                      {msg.citations.map((c, i) => (
-                        <div key={i} className="flex items-center gap-1.5 text-[10px] bg-chat-surface/60 border border-chat-border rounded-md p-1.5">
-                          <FileText className="w-3 h-3 text-chat-accent flex-shrink-0" />
-                          <span>
-                            <span className="font-medium text-foreground">{c.documentTitle}</span>
-                            {c.pageNumbers?.length > 0 && (
-                              <span className="text-chat-muted"> - p. {c.pageNumbers.join(', ')}</span>
-                            )}
-                          </span>
+                    <div className="mt-2 border-t border-foreground/8 pt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedCitations((prev) => ({ ...prev, [msg.id]: !prev[msg.id] }))}
+                        className="flex items-center gap-1 text-[10px] text-chat-muted hover:text-foreground transition-colors"
+                      >
+                        <FileText className="w-2.5 h-2.5" />
+                        <span>{msg.citations.length !== 1 ? (t?.sources ?? '{count} sources').replace('{count}', String(msg.citations.length)) : (t?.source ?? '1 source').replace('{count}', '1')}</span>
+                        <ChevronDown className={`w-2.5 h-2.5 transition-transform duration-200 ${expandedCitations[msg.id] ? 'rotate-180' : ''}`} />
+                      </button>
+                      {expandedCitations[msg.id] && (
+                        <div className="mt-1 space-y-1">
+                          {msg.citations.map((c, i) => {
+                            const absPages = c.pageNumbers?.map((p) => toAbsolutePage(c.documentId, p)) ?? [];
+                            return (
+                              <div key={i} className="flex items-center gap-1.5 text-[10px] bg-chat-surface/60 border border-chat-border rounded-md p-1.5">
+                                <FileText className="w-3 h-3 text-chat-accent flex-shrink-0" />
+                                <span>
+                                  {absPages.length > 0 && (
+                                    <span className="font-medium text-foreground">{t?.page ?? 'p.'} {absPages.join(', ')}</span>
+                                  )}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
-                      ))}
+                      )}
                     </div>
                   )}
                 </div>
@@ -214,7 +264,7 @@ export function EmbedChat({
                             ? 'text-chat-muted/30 cursor-default'
                             : 'text-chat-muted/50 hover:text-chat-accent'
                       }`}
-                      aria-label="Thumbs up"
+                      aria-label={t?.thumbsUp ?? 'Thumbs up'}
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M7 10v12" />
@@ -232,7 +282,7 @@ export function EmbedChat({
                             ? 'text-chat-muted/30 cursor-default'
                             : 'text-chat-muted/50 hover:text-red-500'
                       }`}
-                      aria-label="Thumbs down"
+                      aria-label={t?.thumbsDown ?? 'Thumbs down'}
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M17 14V2" />
@@ -269,18 +319,17 @@ export function EmbedChat({
       <div className="bg-chat-surface border-t border-chat-border p-2 shrink-0 shadow-soft">
         <form onSubmit={handleSubmit} className="relative">
           <input
+            ref={inputRef}
             type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your message..."
+            placeholder={t?.typeYourMessage ?? 'Type your message...'}
             disabled={isLoading}
-            aria-label="Type your message"
+            aria-label={t?.typeYourMessage ?? 'Type your message'}
             className="w-full h-9 rounded-full border border-chat-border bg-chat-bg pl-3 pr-10 text-base text-foreground shadow-soft transition-all duration-150 placeholder:text-chat-muted focus-visible:outline-none focus-visible:border-chat-accent/40 disabled:opacity-50"
           />
           <button
             type="submit"
-            disabled={isLoading || !input.trim()}
-            aria-label="Send message"
+            disabled={isLoading}
+            aria-label={t?.sendMessage ?? 'Send message'}
             className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-chat-accent text-chat-accent-fg transition-all duration-150 hover:brightness-110 active:scale-95 disabled:opacity-30"
           >
             <ArrowUp className="w-3.5 h-3.5" />
@@ -290,10 +339,29 @@ export function EmbedChat({
 
       {/* Minimal branding footer — safe-area padding for iPhone home bar */}
       <div className="px-2 py-1 text-center shrink-0 bg-chat-surface" style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))' }}>
-        <p className="text-[10px] text-chat-muted/60">
-          Powered by <span className="font-medium">Anima AI</span>
-        </p>
+        <span className="text-[10px]">
+          {feedbackConfig?.enabled && messages.length > 0 && (
+            <>
+              <button type="button" onClick={() => setShowFeedbackForm(true)} className="text-chat-muted hover:text-foreground transition-colors cursor-pointer underline underline-offset-2">{t?.leaveFeedback ?? 'Leave a feedback'}</button>
+              <span className="text-chat-muted/30 mx-1.5">&middot;</span>
+            </>
+          )}
+          <a href="https://anima-ai.io" target="_blank" rel="noopener noreferrer" className="text-chat-muted/60 hover:text-chat-muted transition-colors">
+            {t?.visitAnima ?? 'Visit anima-ai.io'}
+          </a>
+        </span>
       </div>
+
+      {/* Feedback form overlay */}
+      {showFeedbackForm && feedbackConfig && (
+        <FeedbackForm
+          config={feedbackConfig}
+          sessionToken={getSessionToken()}
+          primaryColor={primaryColor}
+          onClose={() => setShowFeedbackForm(false)}
+          t={t}
+        />
+      )}
     </div>
   );
 }

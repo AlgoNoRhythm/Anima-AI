@@ -16,10 +16,6 @@ export async function GET(
   { params }: { params: Promise<{ documentId: string }> },
 ) {
   const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   const { documentId } = await params;
 
   const db = createDatabase();
@@ -29,10 +25,18 @@ export async function GET(
     return NextResponse.json({ error: 'Document not found' }, { status: 404 });
   }
 
-  // Verify user has access to the document's project
-  const memberResult = await projectQueries(db).findByIdAndMember(doc.projectId, session.user.id);
-  if (!memberResult) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  // Authenticated users: verify project membership
+  // Unauthenticated users: allow access only if the project is public (has a slug)
+  if (session?.user?.id) {
+    const memberResult = await projectQueries(db).findByIdAndMember(doc.projectId, session.user.id);
+    if (!memberResult) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+  } else {
+    const project = await projectQueries(db).findById(doc.projectId);
+    if (!project?.slug) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   const storage = createStorageClient();

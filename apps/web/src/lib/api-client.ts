@@ -50,3 +50,24 @@ export async function sendFeedback(
   });
   if (!res.ok) throw new Error('Failed to send feedback');
 }
+
+export async function submitFeedbackSurvey(
+  data: {
+    ratings?: Array<{ ratingId: string; value: number }>;
+    answers?: Array<{ questionId: string; value: string }>;
+  },
+  sessionToken: string,
+): Promise<void> {
+  const res = await fetch(`${getChatApiUrl()}/api/feedback-survey`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Session-Token': sessionToken,
+    },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: 'Failed to submit feedback' }));
+    throw new Error(body.error || 'Failed to submit feedback');
+  }
+}

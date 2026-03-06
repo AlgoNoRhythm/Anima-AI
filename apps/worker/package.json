@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@anima-ai/ai": "workspace:*",
+    "@anima-ai/cache": "workspace:*",
     "@anima-ai/database": "workspace:*",
     "@anima-ai/shared": "workspace:*",
     "@anima-ai/storage": "workspace:*",

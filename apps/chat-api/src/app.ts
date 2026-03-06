@@ -4,6 +4,7 @@ import { logger } from 'hono/logger';
 import { chatRoutes } from './routes/chat.js';
 import { sessionRoutes } from './routes/session.js';
 import { feedbackRoutes } from './routes/feedback.js';
+import { feedbackSurveyRoutes } from './routes/feedback-survey.js';
 import { rateLimiter } from './middleware/rate-limiter.js';
 import { securityHeaders } from './middleware/security.js';
 import { createDatabase } from '@anima-ai/database';
@@ -96,6 +97,7 @@ export function createApp() {
   app.route('/api/session', sessionRoutes);
   app.route('/api/chat', chatRoutes);
   app.route('/api/feedback', feedbackRoutes);
+  app.route('/api/feedback-survey', feedbackSurveyRoutes);
 
   // 404 handler
   app.notFound((c) => c.json({ error: 'Not found' }, 404));

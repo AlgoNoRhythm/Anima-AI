@@ -1,7 +1,7 @@
-import type { DocumentTree, TreeSearchResult, SelectedNode, PageIndexConfig } from './types';
+import type { DocumentTree, TreeSearchResult, SelectedNode, PageIndexConfig, TreeNode } from './types';
 import { callLLM } from './llm';
 import { treeSearchPrompt } from './prompts';
-import { removeFields, getNodeById, extractJson } from './utils';
+import { removeFields, flattenTree, extractJson } from './utils';
 
 /**
  * Search document trees for nodes relevant to a query.
@@ -24,11 +24,18 @@ export async function searchTree(
     })
     .join('\n\n---\n\n');
 
-  // Ask LLM to select relevant nodes
-  const response = await callLLM(treeSearchPrompt(query, treeStructure), config);
-  const selectedIds = extractJson<string[]>(response);
+  // Ask LLM to select relevant nodes — fall back to root nodes on any error
+  let selectedIds: string[] = [];
+  try {
+    const response = await callLLM(treeSearchPrompt(query, treeStructure), config);
+    selectedIds = extractJson<string[]>(response) ?? [];
+    if (!Array.isArray(selectedIds)) selectedIds = [];
+  } catch {
+    // LLM failed/timed out/circuit open — fall through to root-node fallback
+    selectedIds = [];
+  }
 
-  if (!selectedIds || !Array.isArray(selectedIds) || selectedIds.length === 0) {
+  if (selectedIds.length === 0) {
     // Fallback: return root nodes
     const fallbackNodes: SelectedNode[] = trees.flatMap((tree) =>
       tree.structure.slice(0, 1).map((node) => ({
@@ -49,27 +56,30 @@ export async function searchTree(
     };
   }
 
-  // Resolve selected node IDs to full nodes
+  // Build lookup map O(n) — one pass over all trees for O(1) per-ID resolution
+  const nodeMap = new Map<string, { node: TreeNode; documentId: string }>();
+  for (const tree of trees) {
+    for (const node of flattenTree(tree.structure)) {
+      nodeMap.set(node.nodeId, { node, documentId: tree.documentId });
+    }
+  }
+
+  // Resolve selected node IDs to full nodes — O(1) per ID
   const selectedNodes: SelectedNode[] = [];
 
   for (let i = 0; i < selectedIds.length; i++) {
-    const nodeId = selectedIds[i]!;
-    // Search across all trees
-    for (const tree of trees) {
-      const node = getNodeById(tree.structure, nodeId);
-      if (node) {
-        selectedNodes.push({
-          nodeId: node.nodeId,
-          documentId: tree.documentId,
-          title: node.title,
-          startIndex: node.startIndex,
-          endIndex: node.endIndex,
-          text: node.text,
-          summary: node.summary,
-          score: 1 - i / selectedIds.length, // Higher score for earlier selections
-        });
-        break;
-      }
+    const entry = nodeMap.get(selectedIds[i]!);
+    if (entry) {
+      selectedNodes.push({
+        nodeId: entry.node.nodeId,
+        documentId: entry.documentId,
+        title: entry.node.title,
+        startIndex: entry.node.startIndex,
+        endIndex: entry.node.endIndex,
+        text: entry.node.text,
+        summary: entry.node.summary,
+        score: 1 - i / selectedIds.length, // Higher score for earlier selections
+      });
     }
   }
 

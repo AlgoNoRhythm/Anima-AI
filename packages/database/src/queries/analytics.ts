@@ -2,7 +2,7 @@ import { eq, and, gte, sql } from 'drizzle-orm';
 import { analyticsEvents } from '../schema/index';
 import type { Database } from '../client';
 
-type EventType = 'session_start' | 'message_sent' | 'message_received' | 'feedback_given' | 'document_viewed' | 'qr_scanned';
+type EventType = 'session_start' | 'message_sent' | 'message_received' | 'feedback_given' | 'document_viewed' | 'qr_scanned' | 'feedback_survey_submitted';
 
 export function analyticsQueries(db: Database) {
   return {

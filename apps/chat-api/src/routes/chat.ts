@@ -70,6 +70,7 @@ chatRoutes.post('/:projectSlug', rateLimiter(), validateSession(), async (c) => 
         sessionId,
         message,
         history,
+        resolvedProject: project ?? undefined,
       });
 
       await stream.writeSSE({

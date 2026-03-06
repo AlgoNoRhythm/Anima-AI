@@ -1,4 +1,4 @@
-import { createDatabase, projectQueries, analyticsQueries } from '@anima-ai/database';
+import { createDatabase, projectQueries, analyticsQueries, feedbackResponseQueries, feedbackConfigQueries } from '@anima-ai/database';
 import { getUserId } from '@/lib/auth-helpers';
 import { notFound } from 'next/navigation';
 import { AnalyticsCharts } from './analytics-charts';
@@ -19,14 +19,18 @@ export default async function AnalyticsPage({
   const project = result.project;
 
   const analytics = analyticsQueries(db);
+  const fbResponses = feedbackResponseQueries(db);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const [messagesToday, totalSessions, dailyData, feedbackCounts] = await Promise.all([
+  const [messagesToday, totalSessions, dailyData, feedbackCounts, surveyCount, avgStarRating, feedbackConfig] = await Promise.all([
     analytics.countByType(projectId, 'message_sent', today),
     analytics.countByType(projectId, 'session_start'),
     analytics.dailyAggregates(projectId, 30),
     analytics.feedbackCounts(projectId),
+    fbResponses.countByProjectId(projectId),
+    fbResponses.averageStarRating(projectId),
+    feedbackConfigQueries(db).findByProjectId(projectId),
   ]);
 
   return (
@@ -37,7 +41,11 @@ export default async function AnalyticsPage({
       </div>
       <AnalyticsCharts
         projectId={projectId}
-        initialData={{ messagesToday, totalSessions, dailyData, feedbackCounts }}
+        initialData={{ messagesToday, totalSessions, dailyData, feedbackCounts, surveyCount, avgStarRating }}
+        feedbackConfig={feedbackConfig ? {
+          ratings: (feedbackConfig.ratings as Array<{ id: string; label: string }>) ?? [],
+          questions: (feedbackConfig.questions as Array<{ id: string; label: string }>) ?? [],
+        } : null}
       />
     </div>
   );

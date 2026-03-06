@@ -3,6 +3,8 @@ import { createDatabase } from './client';
 import * as schema from './schema/index';
 
 const allTables = [
+  schema.feedbackResponses,
+  schema.feedbackConfigs,
   schema.analyticsEvents,
   schema.qrCodes,
   schema.messages,
@@ -111,7 +113,9 @@ export async function migrate(db: ReturnType<typeof createDatabase>) {
     )
   `);
 
-  await db.execute(sql`CREATE INDEX IF NOT EXISTS personalities_project_id_idx ON personalities(project_id)`);
+  // Upgrade to unique index (idempotent: drop non-unique if exists, then create unique)
+  await db.execute(sql`DROP INDEX IF EXISTS personalities_project_id_idx`);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS personalities_project_id_idx ON personalities(project_id)`);
 
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS themes (
@@ -132,6 +136,35 @@ export async function migrate(db: ReturnType<typeof createDatabase>) {
 
   await db.execute(sql`CREATE INDEX IF NOT EXISTS themes_project_id_idx ON themes(project_id)`);
 
+  // Add suggested_questions column if it doesn't exist (for existing databases)
+  await db.execute(sql`
+    ALTER TABLE themes ADD COLUMN IF NOT EXISTS suggested_questions JSONB NOT NULL DEFAULT '[]'
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS feedback_configs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      ratings JSONB NOT NULL DEFAULT '[]',
+      questions JSONB NOT NULL DEFAULT '[]',
+      submit_button_label TEXT NOT NULL DEFAULT 'Submit Feedback',
+      thank_you_message TEXT NOT NULL DEFAULT 'Thank you for your feedback!',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  // Migrate from star rating columns to ratings JSONB (for existing databases)
+  await db.execute(sql`ALTER TABLE feedback_configs ADD COLUMN IF NOT EXISTS ratings JSONB NOT NULL DEFAULT '[]'`);
+  await db.execute(sql`ALTER TABLE feedback_configs DROP COLUMN IF EXISTS star_rating_enabled`);
+  await db.execute(sql`ALTER TABLE feedback_configs DROP COLUMN IF EXISTS star_rating_label`);
+  await db.execute(sql`ALTER TABLE feedback_configs DROP COLUMN IF EXISTS star_rating_required`);
+
+  // Upgrade to unique index (idempotent: drop non-unique if exists, then create unique)
+  await db.execute(sql`DROP INDEX IF EXISTS feedback_configs_project_id_idx`);
+  await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS feedback_configs_project_id_idx ON feedback_configs(project_id)`);
+
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS chat_sessions (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -146,6 +179,29 @@ export async function migrate(db: ReturnType<typeof createDatabase>) {
 
   await db.execute(sql`CREATE INDEX IF NOT EXISTS chat_sessions_project_id_idx ON chat_sessions(project_id)`);
   await db.execute(sql`CREATE INDEX IF NOT EXISTS chat_sessions_expires_at_idx ON chat_sessions(expires_at)`);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS feedback_responses (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      session_id UUID REFERENCES chat_sessions(id) ON DELETE SET NULL,
+      ratings JSONB NOT NULL DEFAULT '[]',
+      answers JSONB NOT NULL DEFAULT '[]',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  // Migrate from star_rating column to ratings JSONB (for existing databases)
+  await db.execute(sql`ALTER TABLE feedback_responses ADD COLUMN IF NOT EXISTS ratings JSONB NOT NULL DEFAULT '[]'`);
+  await db.execute(sql`ALTER TABLE feedback_responses DROP COLUMN IF EXISTS star_rating`);
+
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS feedback_responses_project_id_idx ON feedback_responses(project_id)`);
+
+  // Add translations columns (for existing databases)
+  await db.execute(sql`ALTER TABLE themes ADD COLUMN IF NOT EXISTS translations JSONB NOT NULL DEFAULT '{}'`);
+  await db.execute(sql`ALTER TABLE personalities ADD COLUMN IF NOT EXISTS translations JSONB NOT NULL DEFAULT '{}'`);
+  await db.execute(sql`ALTER TABLE feedback_configs ADD COLUMN IF NOT EXISTS translations JSONB NOT NULL DEFAULT '{}'`);
+  await db.execute(sql`CREATE INDEX IF NOT EXISTS feedback_responses_created_at_idx ON feedback_responses(created_at)`);
 
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS messages (

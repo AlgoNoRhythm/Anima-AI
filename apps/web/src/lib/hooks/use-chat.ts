@@ -58,7 +58,14 @@ function removeFromStorage(key: string): void {
   }
 }
 
-export function useChat(projectSlug: string) {
+interface ChatTranslations {
+  failedToConnect?: string;
+  tooManyMessages?: string;
+  tooManyMessagesWait?: string;
+  failedToSendMessage?: string;
+}
+
+export function useChat(projectSlug: string, translations?: ChatTranslations) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,7 +120,7 @@ export function useChat(projectSlug: string) {
     try {
       token = await initSession();
     } catch {
-      setError('Failed to connect. Please refresh and try again.');
+      setError(translations?.failedToConnect ?? 'Failed to connect. Please refresh and try again.');
       return;
     }
 
@@ -152,8 +159,8 @@ export function useChat(projectSlug: string) {
             // ignore parse errors
           }
           const msg = retryAfter != null
-            ? `Too many messages. Please wait ${retryAfter} seconds.`
-            : 'Too many messages. Please wait before sending another message.';
+            ? (translations?.tooManyMessages ?? 'Too many messages. Please wait {seconds} seconds.').replace('{seconds}', String(retryAfter))
+            : (translations?.tooManyMessagesWait ?? 'Too many messages. Please wait before sending another message.');
           setError(msg);
           return;
         }
@@ -264,7 +271,7 @@ export function useChat(projectSlug: string) {
         await new Promise((r) => setTimeout(r, 1000 * (retryCount + 1)));
         return send(content, retryCount + 1);
       }
-      setError('Failed to send message. Please try again.');
+      setError(translations?.failedToSendMessage ?? 'Failed to send message. Please try again.');
       console.error('Chat error:', err);
     } finally {
       setIsLoading(false);
@@ -289,5 +296,7 @@ export function useChat(projectSlug: string) {
     }
   }, []);
 
-  return { messages, isLoading, error, send, clearChat, submitFeedback };
+  const getSessionToken = useCallback(() => sessionTokenRef.current, []);
+
+  return { messages, isLoading, error, send, clearChat, submitFeedback, getSessionToken };
 }

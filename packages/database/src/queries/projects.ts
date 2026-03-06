@@ -104,11 +104,11 @@ export function projectQueries(db: Database) {
     },
 
     async count(userId?: string) {
-      const query = userId
-        ? db.select().from(projects).where(eq(projects.userId, userId))
-        : db.select().from(projects);
-      const rows = await query;
-      return rows.length;
+      const rows = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(projects)
+        .where(userId ? eq(projects.userId, userId) : undefined);
+      return rows[0]?.count ?? 0;
     },
   };
 }

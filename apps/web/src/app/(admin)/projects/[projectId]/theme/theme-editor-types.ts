@@ -1,3 +1,5 @@
+import type { TranslationsMap, ThemeTranslations } from '@/lib/locale/types';
+
 export interface ThemeState {
   primaryColor: string;
   backgroundColor: string;
@@ -7,6 +9,8 @@ export interface ThemeState {
   borderRadius: string;
   showLogo: boolean;
   actionButtonLabel: string;
+  suggestedQuestions: string[];
+  translations: TranslationsMap<ThemeTranslations>;
 }
 
 export const FONT_OPTIONS = [
@@ -52,4 +56,6 @@ export const THEME_DEFAULTS: ThemeState = {
   borderRadius: '0.5rem',
   showLogo: false,
   actionButtonLabel: 'Open PDF',
+  suggestedQuestions: [],
+  translations: {},
 };

@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { createDatabase, projectQueries, personalityQueries, themeQueries } from '@anima-ai/database';
 import { DEFAULT_MODEL_PROVIDER, DEFAULT_MODEL_NAME, createLogger } from '@anima-ai/shared';
+import { createCacheClient, invalidateProject, invalidateProjectMeta } from '@anima-ai/cache';
 import { getUserId } from '../auth-helpers';
 import { requireProjectAccess } from '../project-auth';
 import { z } from 'zod';
@@ -96,6 +97,14 @@ export async function updateProject(projectId: string, data: Record<string, unkn
 
     const db = createDatabase();
     await projectQueries(db).update(projectId, parsed.data);
+
+    // Invalidate caches — slug may have changed so invalidate both old and new if present
+    try {
+      const c = createCacheClient();
+      if (parsed.data.slug) await invalidateProject(c, parsed.data.slug);
+      await invalidateProjectMeta(c, projectId);
+    } catch { /* best-effort */ }
+
     return { success: true };
   } catch (error) {
     log.error('updateProject error', { error: error instanceof Error ? error.message : error });

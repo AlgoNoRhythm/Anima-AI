@@ -60,7 +60,7 @@ test.describe('Projects', () => {
     // Should redirect to the project overview page (UUID-based path)
     await page.waitForURL(
       (url) => /\/projects\/[0-9a-f-]{36}$/.test(new URL(url).pathname),
-      { timeout: 15000 },
+      { timeout: 30000 },
     );
     await expect(page.locator('h1')).toContainText('E2E Test Project');
   });

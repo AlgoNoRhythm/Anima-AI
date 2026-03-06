@@ -1,17 +1,21 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { ArrowUp, FileText } from 'lucide-react';
+import { ArrowUp, FileText, ChevronDown } from 'lucide-react';
 import { ChatMarkdown } from '@anima-ai/ui';
 import { computeThemeVars } from '@anima-ai/shared';
 import { useChat } from '@/lib/hooks/use-chat';
+import { FeedbackForm } from './feedback-form';
+import type { FeedbackConfig } from './feedback-form';
+import type { ChatUITranslations, SupportedLocale } from '@/lib/locale/types';
 
 // Lazy-load PDF viewer — must be client-only (uses canvas rendering)
 const PdfViewerOverlay = dynamic(
   () => import('./pdf-viewer').then((m) => ({ default: m.PdfViewerOverlay })),
   { ssr: false },
 );
+type StackedDocument = import('./pdf-viewer').StackedDocument;
 
 /** Lock body scroll. Layout uses 100dvh via CSS — no JS height hacks. */
 function useLockBody() {
@@ -27,6 +31,7 @@ function useLockBody() {
 interface DocumentInfo {
   id: string;
   title: string;
+  totalPages: number;
 }
 
 interface ChatClientProps {
@@ -45,6 +50,9 @@ interface ChatClientProps {
   documents?: DocumentInfo[];
   actionButtonLabel?: string;
   mode?: 'chat' | 'pdf' | 'both';
+  feedbackConfig?: FeedbackConfig | null;
+  t: ChatUITranslations;
+  locale: SupportedLocale;
 }
 
 function BotAvatar({ logoUrl, size = 34 }: { logoUrl?: string | null; size?: number }) {
@@ -87,19 +95,47 @@ export function ChatClient({
   documents = [],
   actionButtonLabel,
   mode = 'both',
+  feedbackConfig,
+  t,
+  locale,
 }: ChatClientProps) {
   useLockBody();
-  const { messages, isLoading, error, send, clearChat, submitFeedback } = useChat(projectSlug);
-  const [input, setInput] = useState('');
+  const { messages, isLoading, error, send, clearChat, submitFeedback, getSessionToken } = useChat(projectSlug, t);
+  const [showFeedbackForm, setShowFeedbackForm] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [ratings, setRatings] = useState<Record<string, 'positive' | 'negative'>>({});
+  const [expandedCitations, setExpandedCitations] = useState<Record<string, boolean>>({});
   const [disclaimerVisible, setDisclaimerVisible] = useState(false);
-  const [pdfViewer, setPdfViewer] = useState<{ url: string; title: string; page: number; highlightText?: string } | null>(null);
+  const [pdfViewer, setPdfViewer] = useState<{ absolutePage: number; highlightText?: string } | null>(null);
 
   const showChat = mode !== 'pdf';
   const showDocButton = mode !== 'chat';
   const hasDocuments = documents.length > 0;
-  const documentFileUrl = hasDocuments ? `/api/documents/${documents[0]!.id}/file` : null;
+
+  // Offset map: cumulative page offsets for each document
+  const offsetMap = useMemo(() => {
+    const map: { documentId: string; startPage: number; pageCount: number }[] = [];
+    let cumulative = 0;
+    for (const doc of documents) {
+      map.push({ documentId: doc.id, startPage: cumulative + 1, pageCount: doc.totalPages });
+      cumulative += doc.totalPages;
+    }
+    return map;
+  }, [documents]);
+
+  /** Convert a document-local page number to an absolute page across all stacked documents */
+  function toAbsolutePage(documentId: string, pageWithinDoc: number): number {
+    const entry = offsetMap.find((e) => e.documentId === documentId);
+    if (!entry) return pageWithinDoc;
+    return entry.startPage + pageWithinDoc - 1;
+  }
+
+  // Build stacked documents array for the PDF viewer
+  const stackedDocuments: StackedDocument[] = useMemo(
+    () => documents.map((d) => ({ id: d.id, title: d.title, totalPages: d.totalPages, url: `/api/documents/${d.id}/file` })),
+    [documents],
+  );
 
   useEffect(() => {
     if (showDisclaimer) {
@@ -132,9 +168,9 @@ export function ChatClient({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const trimmed = input.trim();
+    const trimmed = inputRef.current?.value.trim() ?? '';
     if (!trimmed || isLoading) return;
-    setInput('');
+    if (inputRef.current) inputRef.current.value = '';
     send(trimmed);
   }
 
@@ -148,8 +184,8 @@ export function ChatClient({
     setRatings({});
   }
 
-  function openPdf(url: string, title: string, page = 1, highlightText?: string) {
-    setPdfViewer({ url, title, page, highlightText });
+  function openPdfStacked(absolutePage = 1, highlightText?: string) {
+    setPdfViewer({ absolutePage, highlightText });
   }
 
   // Build CSS variable overrides for the theme
@@ -182,13 +218,13 @@ export function ChatClient({
             <h1 className="text-[15px] font-medium text-foreground leading-tight truncate">
               {personality?.name || projectName}
             </h1>
-            <p className="text-xs text-chat-muted">Powered by Anima AI</p>
+            <p className="text-xs text-chat-muted">{t.poweredBy}</p>
           </div>
           {/* Action button — opens document */}
-          {showDocButton && hasDocuments && documentFileUrl && (
+          {showDocButton && hasDocuments && (
             <button
               type="button"
-              onClick={() => openPdf(documentFileUrl, documents[0]!.title, 1)}
+              onClick={() => openPdfStacked(1)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-chat-accent/10 text-chat-accent hover:bg-chat-accent/20 transition-colors shrink-0"
             >
               {actionButtonLabel || 'Open PDF'}
@@ -205,8 +241,8 @@ export function ChatClient({
               type="button"
               onClick={handleClearChat}
               className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-chat-muted hover:text-foreground hover:bg-muted transition-colors"
-              aria-label="Restart chat"
-              title="Restart chat"
+              aria-label={t.restartChat}
+              title={t.restartChat}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
@@ -239,8 +275,8 @@ export function ChatClient({
               type="button"
               onClick={dismissDisclaimer}
               className="inline-flex items-center justify-center w-6 h-6 rounded-md text-chat-muted hover:text-foreground transition-colors flex-shrink-0"
-              aria-label="Dismiss disclaimer"
-              title="Dismiss"
+              aria-label={t.dismissDisclaimer}
+              title={t.dismiss}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M18 6 6 18" />
@@ -258,17 +294,36 @@ export function ChatClient({
 
       {/* Branding footer — safe-area padding for iPhone home bar */}
       <footer className="px-4 py-1.5 text-center shrink-0 bg-chat-surface border-t border-chat-border" style={{ paddingBottom: 'max(0.375rem, env(safe-area-inset-bottom))' }}>
-        <p className="text-[10px] text-chat-muted/60">Powered by Anima AI</p>
+        <span className="text-[10px]">
+          {feedbackConfig?.enabled && messages.length > 0 && (
+            <>
+              <button type="button" onClick={() => setShowFeedbackForm(true)} className="text-chat-muted hover:text-foreground transition-colors cursor-pointer underline underline-offset-2">{t.leaveFeedback}</button>
+              <span className="text-chat-muted/30 mx-1.5">&middot;</span>
+            </>
+          )}
+          <a href="https://anima-ai.io" target="_blank" rel="noopener noreferrer" className="text-chat-muted/60 hover:text-chat-muted transition-colors">{t.visitAnima}</a>
+        </span>
       </footer>
+
+      {/* Feedback form overlay */}
+      {showFeedbackForm && feedbackConfig && (
+        <FeedbackForm
+          config={feedbackConfig}
+          sessionToken={getSessionToken()}
+          primaryColor={primaryColor}
+          onClose={() => setShowFeedbackForm(false)}
+          t={t}
+        />
+      )}
 
       {/* PDF viewer overlay */}
       {pdfViewer && (
         <PdfViewerOverlay
-          url={pdfViewer.url}
-          title={pdfViewer.title}
-          initialPage={pdfViewer.page}
+          documents={stackedDocuments}
+          initialAbsolutePage={pdfViewer.absolutePage}
           highlightText={pdfViewer.highlightText}
           onClose={() => setPdfViewer(null)}
+          t={t}
         />
       )}
     </div>
@@ -294,7 +349,7 @@ export function ChatClient({
                 )}
                 <p className="text-lg font-medium text-foreground">{welcomeMessage}</p>
                 <p className="text-sm text-chat-muted mt-1">
-                  {showChat ? 'Ask me anything.' : 'Browse the document above.'}
+                  {showChat ? t.askMeAnything : t.browseDocument}
                 </p>
 
                 {/* Suggested starter questions — pill chips */}
@@ -343,30 +398,42 @@ export function ChatClient({
                       <ChatMarkdown content={msg.content} />
                     )}
                     {msg.incomplete && (
-                      <p className="mt-1 text-xs opacity-50 italic">(response interrupted)</p>
+                      <p className="mt-1 text-xs opacity-50 italic">{t.responseInterrupted}</p>
                     )}
                     {msg.citations && msg.citations.length > 0 && (
-                      <div className="mt-2.5 space-y-1.5 border-t border-foreground/8 pt-2">
-                        <p className="text-xs text-chat-muted">Sources</p>
-                        {msg.citations.map((c, i) => {
-                          const citationUrl = c.documentId ? `/api/documents/${c.documentId}/file` : null;
-                          return (
-                            <button
-                              type="button"
-                              key={i}
-                              onClick={() => citationUrl && openPdf(citationUrl, c.documentTitle, c.pageNumbers?.[0] ?? 1, c.text)}
-                              className="w-full flex items-center gap-2 text-left text-xs bg-chat-surface/60 border border-chat-border rounded-lg p-2 hover:bg-chat-surface transition-colors cursor-pointer"
-                            >
-                              <FileText className="w-3.5 h-3.5 text-chat-accent flex-shrink-0" />
-                              <span>
-                                <span className="font-medium text-foreground">{c.documentTitle}</span>
-                                {c.pageNumbers?.length > 0 && (
-                                  <span className="text-chat-muted"> - p. {c.pageNumbers.join(', ')}</span>
-                                )}
-                              </span>
-                            </button>
-                          );
-                        })}
+                      <div className="mt-2.5 border-t border-foreground/8 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedCitations((prev) => ({ ...prev, [msg.id]: !prev[msg.id] }))}
+                          className="flex items-center gap-1 text-xs text-chat-muted hover:text-foreground transition-colors"
+                        >
+                          <FileText className="w-3 h-3" />
+                          <span>{msg.citations.length !== 1 ? t.sources.replace('{count}', String(msg.citations.length)) : t.source.replace('{count}', '1')}</span>
+                          <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${expandedCitations[msg.id] ? 'rotate-180' : ''}`} />
+                        </button>
+                        {expandedCitations[msg.id] && (
+                          <div className="mt-1.5 space-y-1.5">
+                            {msg.citations.map((c, i) => {
+                              const absPages = c.pageNumbers?.map((p) => toAbsolutePage(c.documentId, p)) ?? [];
+                              const firstAbsPage = absPages[0] ?? 1;
+                              return (
+                                <button
+                                  type="button"
+                                  key={i}
+                                  onClick={() => openPdfStacked(firstAbsPage, c.text)}
+                                  className="w-full flex items-center gap-2 text-left text-xs bg-chat-surface/60 border border-chat-border rounded-lg p-2 hover:bg-chat-surface transition-colors cursor-pointer"
+                                >
+                                  <FileText className="w-3.5 h-3.5 text-chat-accent flex-shrink-0" />
+                                  <span>
+                                    {absPages.length > 0 && (
+                                      <span className="font-medium text-foreground">{t.page} {absPages.join(', ')}</span>
+                                    )}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -402,8 +469,8 @@ export function ChatClient({
                               ? 'text-chat-muted/30 cursor-default'
                               : 'text-chat-muted/50 hover:text-chat-accent'
                         }`}
-                        aria-label="Thumbs up"
-                        title="Good response"
+                        aria-label={t.thumbsUp}
+                        title={t.goodResponse}
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M7 10v12" />
@@ -421,8 +488,8 @@ export function ChatClient({
                               ? 'text-chat-muted/30 cursor-default'
                               : 'text-chat-muted/50 hover:text-red-500'
                         }`}
-                        aria-label="Thumbs down"
-                        title="Bad response"
+                        aria-label={t.thumbsDown}
+                        title={t.badResponse}
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M17 14V2" />
@@ -460,18 +527,17 @@ export function ChatClient({
           <div className="bg-chat-surface border-t border-chat-border px-4 py-3 shrink-0 shadow-soft">
             <form onSubmit={handleSubmit} className="max-w-[700px] mx-auto relative">
               <input
+                ref={inputRef}
                 type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Type your message..."
+                placeholder={t.typeYourMessage}
                 disabled={isLoading}
-                aria-label="Type your message"
+                aria-label={t.typeYourMessage}
                 className="w-full h-11 rounded-full border border-chat-border bg-chat-bg pl-4 pr-12 text-base text-foreground shadow-soft transition-all duration-150 placeholder:text-chat-muted focus-visible:outline-none focus-visible:border-chat-accent/40 disabled:opacity-50"
               />
               <button
                 type="submit"
-                disabled={isLoading || !input.trim()}
-                aria-label="Send message"
+                disabled={isLoading}
+                aria-label={t.sendMessage}
                 className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-chat-accent text-chat-accent-fg transition-all duration-150 hover:brightness-110 active:scale-95 disabled:opacity-30"
               >
                 <ArrowUp className="w-4 h-4" />

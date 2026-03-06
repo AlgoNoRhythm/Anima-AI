@@ -21,6 +21,8 @@ export function themeQueries(db: Database) {
       welcomeMessage?: string;
       borderRadius?: string;
       actionButtonLabel?: string;
+      suggestedQuestions?: string[];
+      translations?: Record<string, unknown>;
     }) {
       const existing = await this.findByProjectId(projectId);
       if (existing) {
@@ -42,6 +44,7 @@ export function themeQueries(db: Database) {
           welcomeMessage: data.welcomeMessage ?? 'Hello! How can I help you today?',
           borderRadius: data.borderRadius ?? '0.5rem',
           actionButtonLabel: data.actionButtonLabel ?? 'Open PDF',
+          suggestedQuestions: data.suggestedQuestions ?? [],
         })
         .returning();
       return rows[0]!;

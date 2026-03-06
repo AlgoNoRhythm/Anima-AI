@@ -3,6 +3,9 @@
 import { useState, useRef, KeyboardEvent } from 'react';
 import { updatePersonality } from '@/lib/actions/personality';
 import { MODEL_OPTIONS, DEFAULT_MODEL_PROVIDER, DEFAULT_MODEL_NAME } from '@anima-ai/shared';
+import { LocaleTabs } from '@/components/locale-tabs';
+import { TranslatableField } from '@/components/translatable-field';
+import type { SupportedLocale, TranslationsMap, PersonalityTranslations } from '@/lib/locale/types';
 
 interface PersonalityFormProps {
   projectId: string;
@@ -22,6 +25,7 @@ interface PersonalityFormProps {
     };
     showDisclaimer: boolean;
     disclaimerText: string;
+    translations?: TranslationsMap<PersonalityTranslations>;
   } | null;
   apiKeyStatus?: { openai: boolean; anthropic: boolean };
 }
@@ -48,6 +52,25 @@ export function PersonalityForm({ projectId, personality, apiKeyStatus }: Person
   const [disclaimerText, setDisclaimerText] = useState(
     personality?.disclaimerText ?? 'AI-generated responses may contain inaccuracies. Please verify important information.',
   );
+
+  const [translations, setTranslations] = useState<TranslationsMap<PersonalityTranslations>>(
+    personality?.translations ?? {},
+  );
+  const [activeLocale, setActiveLocale] = useState<SupportedLocale>('en');
+
+  function getPersonalityTranslation(field: keyof PersonalityTranslations): string {
+    if (activeLocale === 'en') return '';
+    return (translations[activeLocale]?.[field] as string | undefined) ?? '';
+  }
+
+  function setPersonalityTranslation(field: keyof PersonalityTranslations, value: string) {
+    if (activeLocale === 'en') return;
+    const current = translations[activeLocale] ?? {};
+    setTranslations((prev) => ({
+      ...prev,
+      [activeLocale]: { ...current, [field]: value },
+    }));
+  }
 
   const [blockedTopics, setBlockedTopics] = useState<string[]>(
     personality?.guardrails?.blockedTopics ?? [],
@@ -107,6 +130,7 @@ export function PersonalityForm({ projectId, personality, apiKeyStatus }: Person
         },
         showDisclaimer,
         disclaimerText,
+        translations,
       });
 
       if (result.success) {
@@ -132,24 +156,43 @@ export function PersonalityForm({ projectId, personality, apiKeyStatus }: Person
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Name */}
+      {/* Locale tabs */}
       <div>
-        <label htmlFor="personality-name" className="block text-sm font-medium mb-2">
-          Name
-        </label>
-        <input
-          id="personality-name"
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className={inputClass}
-          placeholder="e.g. Friendly Assistant"
-          required
-        />
-        <p className="text-xs text-muted-foreground mt-2">
-          A descriptive name for this personality configuration.
-        </p>
+        <label className="block text-xs font-medium text-muted-foreground mb-2">Translation Language</label>
+        <LocaleTabs activeLocale={activeLocale} onChange={setActiveLocale} />
       </div>
+
+      {/* Name */}
+      <TranslatableField locale={activeLocale}>
+        <div>
+          <label htmlFor="personality-name" className="block text-sm font-medium mb-2">
+            Name
+          </label>
+          {activeLocale === 'en' ? (
+            <input
+              id="personality-name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={inputClass}
+              placeholder="e.g. Friendly Assistant"
+              required
+            />
+          ) : (
+            <input
+              id="personality-name"
+              type="text"
+              value={getPersonalityTranslation('name')}
+              onChange={(e) => setPersonalityTranslation('name', e.target.value)}
+              className={inputClass}
+              placeholder={name}
+            />
+          )}
+          <p className="text-xs text-muted-foreground mt-2">
+            A descriptive name for this personality configuration.
+          </p>
+        </div>
+      </TranslatableField>
 
       {/* System Prompt */}
       <div>
@@ -389,23 +432,37 @@ export function PersonalityForm({ projectId, personality, apiKeyStatus }: Person
             </div>
           </label>
           {showDisclaimer && (
-            <div>
-              <label htmlFor="disclaimer-text" className="block text-sm font-medium mb-2">
-                Disclaimer Text
-              </label>
-              <input
-                id="disclaimer-text"
-                type="text"
-                value={disclaimerText}
-                onChange={(e) => setDisclaimerText(e.target.value)}
-                className={inputClass}
-                placeholder="AI-generated responses may contain inaccuracies."
-                maxLength={500}
-              />
-              <p className="text-xs text-muted-foreground mt-2">
-                Customize the disclaimer message shown to users. Max 500 characters.
-              </p>
-            </div>
+            <TranslatableField locale={activeLocale}>
+              <div>
+                <label htmlFor="disclaimer-text" className="block text-sm font-medium mb-2">
+                  Disclaimer Text
+                </label>
+                {activeLocale === 'en' ? (
+                  <input
+                    id="disclaimer-text"
+                    type="text"
+                    value={disclaimerText}
+                    onChange={(e) => setDisclaimerText(e.target.value)}
+                    className={inputClass}
+                    placeholder="AI-generated responses may contain inaccuracies."
+                    maxLength={500}
+                  />
+                ) : (
+                  <input
+                    id="disclaimer-text"
+                    type="text"
+                    value={getPersonalityTranslation('disclaimerText')}
+                    onChange={(e) => setPersonalityTranslation('disclaimerText', e.target.value)}
+                    className={inputClass}
+                    placeholder={disclaimerText}
+                    maxLength={500}
+                  />
+                )}
+                <p className="text-xs text-muted-foreground mt-2">
+                  Customize the disclaimer message shown to users. Max 500 characters.
+                </p>
+              </div>
+            </TranslatableField>
           )}
         </div>
       </div>

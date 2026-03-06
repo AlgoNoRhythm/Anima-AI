@@ -42,7 +42,7 @@ export default async function ConversationsPage({
         projectId={projectId}
         initialSessions={result.sessions.map((s) => ({
           ...s,
-          createdAt: s.createdAt.toISOString(),
+          createdAt: new Date(s.createdAt).toISOString(),
         }))}
         initialTotal={result.total}
         initialPage={page}

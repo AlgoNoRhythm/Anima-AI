@@ -7,6 +7,8 @@ import { validateInput } from '../guardrails';
 import type { PersonalityConfig, RAGResult, SearchOptions, HistoryMessage } from '../types';
 import type { DocumentTree } from '../page-index/types';
 import { documentQueries } from '@anima-ai/database';
+import type { CacheClient } from '@anima-ai/cache';
+import { getCachedDocumentTrees, setCachedDocumentTrees } from '@anima-ai/cache';
 
 export async function ragPipeline(
   query: string,
@@ -17,6 +19,7 @@ export async function ragPipeline(
   options: SearchOptions = {},
   history: HistoryMessage[] = [],
   apiKey?: string,
+  cache?: CacheClient,
 ): Promise<RAGResult> {
   // Validate input
   const inputValidation = validateInput(query, personality.guardrails);
@@ -28,8 +31,20 @@ export async function ragPipeline(
     };
   }
 
-  // Load document trees from database
-  const treeRows = await documentQueries(db).getTreeIndices(projectId);
+  // Load document trees — check cache first
+  type TreeRow = { docName: string; documentId: string; treeIndex: unknown; detectedEntity?: string | null };
+  let treeRows: TreeRow[] | null = null;
+
+  if (cache) {
+    treeRows = await getCachedDocumentTrees<TreeRow[]>(cache, projectId);
+  }
+
+  if (!treeRows) {
+    treeRows = await documentQueries(db).getTreeIndices(projectId);
+    if (cache && treeRows.length > 0) {
+      await setCachedDocumentTrees(cache, projectId, treeRows);
+    }
+  }
 
   if (treeRows.length === 0) {
     const noResultsMessage =

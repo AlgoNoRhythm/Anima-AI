@@ -11,3 +11,5 @@ export { chunkQueries } from './chunks';
 export { qrCodeQueries } from './qr-codes';
 export { projectMemberQueries } from './project-members';
 export { projectInvitationQueries } from './project-invitations';
+export { feedbackConfigQueries } from './feedback-configs';
+export { feedbackResponseQueries } from './feedback-responses';

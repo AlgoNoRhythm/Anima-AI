@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createDatabase, projectQueries, analyticsQueries } from '@anima-ai/database';
+import { createDatabase, projectQueries, analyticsQueries, feedbackResponseQueries, feedbackConfigQueries } from '@anima-ai/database';
 import { auth } from '@/lib/auth';
 import { createLogger } from '@anima-ai/shared';
 
@@ -25,14 +25,18 @@ export async function GET(
     const project = memberResult.project;
 
     const analytics = analyticsQueries(db);
+    const fbResponses = feedbackResponseQueries(db);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const [messagesToday, totalSessions, dailyData, feedbackCounts] = await Promise.all([
+    const [messagesToday, totalSessions, dailyData, feedbackCounts, surveyCount, avgStarRating, feedbackConfig] = await Promise.all([
       analytics.countByType(projectId, 'message_sent', today),
       analytics.countByType(projectId, 'session_start'),
       analytics.dailyAggregates(projectId, 30),
       analytics.feedbackCounts(projectId),
+      fbResponses.countByProjectId(projectId),
+      fbResponses.averageStarRating(projectId),
+      feedbackConfigQueries(db).findByProjectId(projectId),
     ]);
 
     return NextResponse.json({
@@ -40,6 +44,12 @@ export async function GET(
       totalSessions,
       dailyData,
       feedbackCounts,
+      surveyCount,
+      avgStarRating,
+      feedbackConfig: feedbackConfig ? {
+        ratings: feedbackConfig.ratings ?? [],
+        questions: feedbackConfig.questions ?? [],
+      } : null,
     });
   } catch (error) {
     log.error('GET /api/projects/[id]/analytics error', { error: error instanceof Error ? error.message : error });

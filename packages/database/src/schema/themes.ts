@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, index, jsonb } from 'drizzle-orm/pg-core';
 import { projects } from './projects';
 
 export const themes = pgTable('themes', {
@@ -12,6 +12,8 @@ export const themes = pgTable('themes', {
   customCss: text('custom_css'),
   welcomeMessage: text('welcome_message').notNull().default('Hello! How can I help you today?'),
   actionButtonLabel: text('action_button_label').notNull().default('Open PDF'),
+  suggestedQuestions: jsonb('suggested_questions').notNull().default([]),
+  translations: jsonb('translations').notNull().default({}),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [

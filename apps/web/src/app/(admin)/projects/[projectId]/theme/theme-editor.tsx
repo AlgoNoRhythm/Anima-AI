@@ -7,6 +7,8 @@ import { THEME_DEFAULTS } from './theme-editor-types';
 import { ThemeEditorPreview } from './theme-editor-preview';
 import { ThemeEditorControls } from './theme-editor-controls';
 
+import type { TranslationsMap, ThemeTranslations } from '@/lib/locale/types';
+
 interface ThemeEditorProps {
   projectId: string;
   projectName: string;
@@ -18,6 +20,8 @@ interface ThemeEditorProps {
     logoUrl: string | null;
     borderRadius: string;
     actionButtonLabel: string;
+    suggestedQuestions: string[];
+    translations: TranslationsMap<ThemeTranslations>;
   } | null;
 }
 
@@ -30,7 +34,9 @@ export function ThemeEditor({ projectId, projectName, theme }: ThemeEditorProps)
     logoUrl: theme?.logoUrl ?? null,
     borderRadius: theme?.borderRadius ?? THEME_DEFAULTS.borderRadius,
     actionButtonLabel: theme?.actionButtonLabel ?? THEME_DEFAULTS.actionButtonLabel,
+    suggestedQuestions: theme?.suggestedQuestions ?? THEME_DEFAULTS.suggestedQuestions,
     showLogo: !!theme?.logoUrl,
+    translations: theme?.translations ?? {},
   });
 
   const [saving, setSaving] = useState(false);
@@ -53,6 +59,8 @@ export function ThemeEditor({ projectId, projectName, theme }: ThemeEditorProps)
         welcomeMessage: state.welcomeMessage,
         borderRadius: state.borderRadius,
         actionButtonLabel: state.actionButtonLabel,
+        suggestedQuestions: state.suggestedQuestions,
+        translations: state.translations,
       };
 
       // Only send logoUrl as null if user explicitly removed it

@@ -25,16 +25,8 @@ export function personalityQueries(db: Database) {
       showDisclaimer?: boolean;
       disclaimerText?: string;
       enableImageSupport?: boolean;
+      translations?: Record<string, unknown>;
     }) {
-      const existing = await this.findByProjectId(projectId);
-      if (existing) {
-        const rows = await db
-          .update(personalities)
-          .set({ ...data, updatedAt: new Date() })
-          .where(eq(personalities.id, existing.id))
-          .returning();
-        return rows[0]!;
-      }
       const rows = await db
         .insert(personalities)
         .values({
@@ -46,6 +38,10 @@ export function personalityQueries(db: Database) {
           modelProvider: data.modelProvider ?? DEFAULT_MODEL_PROVIDER,
           modelName: data.modelName ?? DEFAULT_MODEL_NAME,
           guardrails: data.guardrails ?? {},
+        })
+        .onConflictDoUpdate({
+          target: personalities.projectId,
+          set: { ...data, updatedAt: new Date() },
         })
         .returning();
       return rows[0]!;

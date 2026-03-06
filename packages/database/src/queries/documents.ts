@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { documents } from '../schema/index';
 import type { Database } from '../client';
 
@@ -9,7 +9,7 @@ export function documentQueries(db: Database) {
     async findByProjectId(projectId: string, opts?: { limit?: number; offset?: number }) {
       const limit = opts?.limit ?? 50;
       const offset = opts?.offset ?? 0;
-      return db.select().from(documents).where(eq(documents.projectId, projectId)).limit(limit).offset(offset);
+      return db.select().from(documents).where(eq(documents.projectId, projectId)).orderBy(asc(documents.createdAt)).limit(limit).offset(offset);
     },
 
     async findById(id: string) {

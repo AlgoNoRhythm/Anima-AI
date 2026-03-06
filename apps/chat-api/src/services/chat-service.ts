@@ -1,10 +1,13 @@
 import { createDecipheriv } from 'node:crypto';
-import { createDatabase, projectQueries, personalityQueries, documentQueries, messageQueries, analyticsQueries, apiKeyQueries } from '@anima-ai/database';
+import { createDatabase, projectQueries, personalityQueries, documentQueries, messageQueries, apiKeyQueries } from '@anima-ai/database';
 import { ragPipeline } from '@anima-ai/ai';
 import type { PersonalityConfig, Guardrails } from '@anima-ai/ai';
 import { DEFAULT_PERSONALITY, DEFAULT_GUARDRAILS, createLogger } from '@anima-ai/shared';
+import { createCacheClient, getCachedProject, setCachedProject, getCachedProjectMeta, setCachedProjectMeta } from '@anima-ai/cache';
+import { queueAnalyticsEvent } from './analytics-buffer.js';
 
 const log = createLogger('chat-service');
+const cache = createCacheClient();
 
 const ALGORITHM = 'aes-256-gcm';
 
@@ -51,6 +54,8 @@ export interface ChatRequest {
   sessionId: string;
   message: string;
   history?: ChatHistoryMessage[];
+  /** Pre-resolved project from the route (avoids duplicate slug lookup). */
+  resolvedProject?: { id: string; userId: string; mode: string; settings?: unknown };
 }
 
 export interface ChatResponse {
@@ -68,44 +73,76 @@ export interface ChatResponse {
   getFollowUps: (query: string, answer: string) => Promise<string[]>;
 }
 
+interface ProjectMeta {
+  personality: Record<string, unknown> | null;
+  documentTitles: Record<string, string>;
+  entityName: string | null;
+}
+
 export async function handleChat(request: ChatRequest): Promise<ChatResponse> {
   const db = createDatabase();
 
-  // Look up project by slug
-  const project = await projectQueries(db).findBySlug(request.projectSlug);
+  // Look up project by slug — use resolvedProject from route if available, then cache, then DB
+  let project = request.resolvedProject as { id: string; userId: string; mode: string; settings?: unknown } | undefined;
   if (!project) {
-    throw new Error('Project not found');
+    project = await getCachedProject<{ id: string; userId: string; mode: string; settings?: unknown }>(cache, request.projectSlug) ?? undefined;
+    if (!project) {
+      const dbProject = await projectQueries(db).findBySlug(request.projectSlug);
+      if (!dbProject) {
+        throw new Error('Project not found');
+      }
+      project = dbProject;
+      await setCachedProject(cache, request.projectSlug, dbProject);
+    }
   }
 
   if (project.mode === 'pdf') {
     throw new Error('This project is configured for document viewing only');
   }
 
-  // Get personality config (fall back to defaults for unconfigured projects)
-  const personality = await personalityQueries(db).findByProjectId(project.id);
+  // Get personality + document meta — check cache first
+  let meta = await getCachedProjectMeta<ProjectMeta>(cache, project.id);
+  let personality: Record<string, unknown> | null;
+  let documentTitles: Map<string, string>;
+  let entityName: string | null;
 
-  // Build document titles map and detect entity
-  const documents = await documentQueries(db).findByProjectId(project.id);
-  const documentTitles = new Map<string, string>();
-  let entityName: string | null = null;
-  for (const doc of documents) {
-    documentTitles.set(doc.id, doc.title || doc.filename);
-    if (!entityName && doc.detectedEntity) {
-      entityName = doc.detectedEntity;
+  if (meta) {
+    personality = meta.personality;
+    documentTitles = new Map(Object.entries(meta.documentTitles));
+    entityName = meta.entityName;
+  } else {
+    personality = await personalityQueries(db).findByProjectId(project.id);
+    const documents = await documentQueries(db).findByProjectId(project.id);
+    const titleMap: Record<string, string> = {};
+    entityName = null;
+    for (const doc of documents) {
+      titleMap[doc.id] = doc.title || doc.filename;
+      if (!entityName && doc.detectedEntity) {
+        entityName = doc.detectedEntity;
+      }
     }
+    documentTitles = new Map(Object.entries(titleMap));
+
+    // Cache for next time
+    await setCachedProjectMeta(cache, project.id, {
+      personality,
+      documentTitles: titleMap,
+      entityName,
+    });
   }
 
   // Build PersonalityConfig for the RAG pipeline
   const personalityConfig: PersonalityConfig = personality
     ? (() => {
-        const guardrails = (personality.guardrails ?? {}) as Guardrails;
+        const p = personality as any;
+        const guardrails = (p.guardrails ?? {}) as Guardrails;
         return {
-          name: personality.name,
-          systemPrompt: personality.systemPrompt,
-          tone: personality.tone,
-          temperature: personality.temperature,
-          modelProvider: personality.modelProvider as 'openai' | 'anthropic',
-          modelName: personality.modelName,
+          name: p.name,
+          systemPrompt: p.systemPrompt,
+          tone: p.tone,
+          temperature: p.temperature,
+          modelProvider: p.modelProvider as 'openai' | 'anthropic',
+          modelName: p.modelName,
           entityName,
           guardrails: {
             blockedTopics: guardrails.blockedTopics || [],
@@ -140,8 +177,8 @@ export async function handleChat(request: ChatRequest): Promise<ChatResponse> {
     content: request.message,
   });
 
-  // Log analytics
-  await analyticsQueries(db).logEvent({
+  // Queue analytics event (batched insert)
+  queueAnalyticsEvent({
     projectId: project.id,
     sessionId: request.sessionId,
     eventType: 'message_sent',
@@ -168,7 +205,7 @@ export async function handleChat(request: ChatRequest): Promise<ChatResponse> {
     }
   }
 
-  // Run RAG pipeline
+  // Run RAG pipeline (pass cache for document tree caching)
   const result = await ragPipeline(
     request.message,
     project.id,
@@ -178,7 +215,11 @@ export async function handleChat(request: ChatRequest): Promise<ChatResponse> {
     {},
     request.history || [],
     ownerApiKey,
+    cache,
   );
+
+  // Pre-generate the assistant message ID so we can return it in the SSE start event
+  const assistantMessageId = crypto.randomUUID();
 
   // Create a wrapper that saves the assistant message on completion
   const collectedText: string[] = [];
@@ -196,14 +237,15 @@ export async function handleChat(request: ChatRequest): Promise<ChatResponse> {
             const fullText = collectedText.join('');
             if (fullText) {
               await messageQueries(db).create({
+                id: assistantMessageId,
                 sessionId: request.sessionId,
                 role: 'assistant',
                 content: fullText,
                 citations: result.citations,
               });
 
-              await analyticsQueries(db).logEvent({
-                projectId: project.id,
+              queueAnalyticsEvent({
+                projectId: project!.id,
                 sessionId: request.sessionId,
                 eventType: 'message_received',
               });
@@ -216,7 +258,7 @@ export async function handleChat(request: ChatRequest): Promise<ChatResponse> {
   };
 
   return {
-    messageId: userMessage.id,
+    messageId: assistantMessageId,
     textStream: wrappedStream,
     citations: result.citations,
     getFollowUps: async (query: string, answer: string) => {

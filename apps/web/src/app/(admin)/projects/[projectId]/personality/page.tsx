@@ -40,6 +40,7 @@ export default async function PersonalityPage({
           guardrails: personality.guardrails as Record<string, unknown>,
           showDisclaimer: personality.showDisclaimer,
           disclaimerText: personality.disclaimerText,
+          translations: (personality.translations as Record<string, Record<string, unknown>>) ?? {},
         } : null}
         apiKeyStatus={keyStatus}
       />

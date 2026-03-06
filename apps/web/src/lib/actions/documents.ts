@@ -2,6 +2,7 @@
 
 import { createDatabase, projectQueries, documentQueries, chunkQueries, analyticsQueries, apiKeyQueries, personalityQueries } from '@anima-ai/database';
 import { createStorageClient } from '@anima-ai/storage';
+import { createCacheClient, invalidateProjectMeta, invalidateDocumentTrees } from '@anima-ai/cache';
 import { getUserId } from '../auth-helpers';
 import { requireProjectAccess } from '../project-auth';
 import { enqueueProcessing } from '../queue-client';
@@ -171,6 +172,13 @@ export async function uploadDocument(projectId: string, formData: FormData) {
       log.error('Failed to log document_uploaded analytics event', { error: analyticsErr instanceof Error ? analyticsErr.message : analyticsErr });
     }
 
+    // Invalidate caches so new document appears in meta
+    try {
+      const c = createCacheClient();
+      await invalidateProjectMeta(c, projectId);
+      await invalidateDocumentTrees(c, projectId);
+    } catch { /* best-effort */ }
+
     return { success: true, documentId: doc.id };
   } catch (error) {
     log.error('uploadDocument error', { error: error instanceof Error ? error.message : error });
@@ -204,6 +212,13 @@ export async function deleteDocument(documentId: string) {
 
     // Delete from DB (cascades to chunks)
     await docs.delete(documentId);
+
+    // Invalidate caches
+    try {
+      const c = createCacheClient();
+      await invalidateProjectMeta(c, doc.projectId);
+      await invalidateDocumentTrees(c, doc.projectId);
+    } catch { /* best-effort */ }
 
     return { success: true };
   } catch (error) {

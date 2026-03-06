@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useToast } from '@/components/toast';
+import { FeedbackResponsesSection } from './feedback-responses-section';
 
 interface AnalyticsChartsProps {
   projectId: string;
@@ -28,12 +29,18 @@ interface AnalyticsChartsProps {
       positive: number;
       negative: number;
     };
+    surveyCount?: number;
+    avgStarRating?: number | null;
   };
+  feedbackConfig?: {
+    ratings: Array<{ id: string; label: string }>;
+    questions: Array<{ id: string; label: string }>;
+  } | null;
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-export function AnalyticsCharts({ projectId, initialData }: AnalyticsChartsProps) {
+export function AnalyticsCharts({ projectId, initialData, feedbackConfig }: AnalyticsChartsProps) {
   const { data } = useSWR<AnalyticsChartsProps['initialData']>(
     `/api/projects/${projectId}/analytics`,
     fetcher,
@@ -78,19 +85,19 @@ export function AnalyticsCharts({ projectId, initialData }: AnalyticsChartsProps
   const totalSessions = data?.totalSessions ?? initialData.totalSessions;
   const dailyData = data?.dailyData ?? initialData.dailyData;
   const feedbackCounts = data?.feedbackCounts ?? initialData.feedbackCounts;
+  const surveyCount = data?.surveyCount ?? initialData.surveyCount ?? 0;
+  const avgStarRating = data?.avgStarRating ?? initialData.avgStarRating;
 
   const feedbackTotal = (feedbackCounts?.positive ?? 0) + (feedbackCounts?.negative ?? 0);
   const feedbackDisplay = feedbackTotal > 0
     ? `${Math.round((feedbackCounts!.positive / feedbackTotal) * 100)}%`
     : 'N/A';
 
+  const surveyDisplay = avgStarRating != null ? `${avgStarRating.toFixed(1)} / 5` : 'N/A';
+
   return (
     <div className="animate-fade-in">
-      <div className="mb-8 flex items-start justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Analytics</h2>
-          <p className="text-muted-foreground mt-1">Track usage and engagement for your chatbot.</p>
-        </div>
+      <div className="mb-8 flex justify-end">
         <button
           onClick={handleExportCSV}
           disabled={exporting}
@@ -104,7 +111,7 @@ export function AnalyticsCharts({ projectId, initialData }: AnalyticsChartsProps
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="rounded-xl border bg-card p-6 shadow-elevated transition-all duration-200 hover:shadow-elevated-lg">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-medium text-muted-foreground">Messages Today</h3>
@@ -157,6 +164,28 @@ export function AnalyticsCharts({ projectId, initialData }: AnalyticsChartsProps
           {feedbackTotal > 0 && (
             <p className="text-xs text-muted-foreground mt-1">
               {feedbackCounts!.positive} positive / {feedbackCounts!.negative} negative
+            </p>
+          )}
+        </div>
+
+        <div className="rounded-xl border bg-card p-6 shadow-elevated transition-all duration-200 hover:shadow-elevated-lg">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-medium text-muted-foreground">Survey Responses</h3>
+            <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+              <svg className="w-4 h-4 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                />
+              </svg>
+            </div>
+          </div>
+          <p className="text-3xl font-bold">{surveyCount}</p>
+          {surveyCount > 0 && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Avg. rating: {surveyDisplay}
             </p>
           )}
         </div>
@@ -226,6 +255,11 @@ export function AnalyticsCharts({ projectId, initialData }: AnalyticsChartsProps
           </div>
         )}
       </div>
+
+      <FeedbackResponsesSection
+        projectId={projectId}
+        feedbackConfig={feedbackConfig ?? null}
+      />
     </div>
   );
 }

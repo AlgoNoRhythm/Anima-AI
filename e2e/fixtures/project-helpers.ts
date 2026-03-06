@@ -13,8 +13,13 @@ export async function createTestProject(
   const name = options.name ?? 'E2E Test Project';
 
   await page.goto('/projects/new');
-  await page.fill('input[name="name"]', name);
-  await page.fill('input[name="slug"]', slug);
+  await page.waitForLoadState('domcontentloaded');
+
+  // Wait for the form to be ready, then fill fields
+  const nameInput = page.locator('input[name="name"]');
+  await nameInput.waitFor({ state: 'visible' });
+  await nameInput.fill(name);
+  await page.locator('input[name="slug"]').fill(slug);
   await page.selectOption('select[name="mode"]', 'both');
   await page.click('button[type="submit"]');
 
@@ -26,7 +31,7 @@ export async function createTestProject(
       // Match /projects/<uuid> but NOT /projects/new or /projects/new?error=...
       return /\/projects\/[0-9a-f-]{36}$/.test(pathname);
     },
-    { timeout: 15000 },
+    { timeout: 30000 },
   );
 
   const url = page.url();

@@ -39,16 +39,19 @@ export function startWorkers(connection?: IORedis) {
   const redisUrl = getRedisUrl();
   const conn = connection || new IORedis(redisUrl, { maxRetriesPerRequest: null });
 
+  const pdfConcurrency = parseInt(process.env.WORKER_PDF_CONCURRENCY || '2', 10);
+  const indexingConcurrency = parseInt(process.env.WORKER_INDEXING_CONCURRENCY || '2', 10);
+
   const pdfWorker = new Worker(PDF_QUEUE, processPdf, {
     connection: conn,
-    concurrency: 2,
+    concurrency: pdfConcurrency,
     removeOnComplete: { count: 100 },
     removeOnFail: { count: 50 },
   });
 
   const indexingWorker = new Worker(INDEXING_QUEUE, processIndexing, {
     connection: conn,
-    concurrency: 2,
+    concurrency: indexingConcurrency,
     removeOnComplete: { count: 100 },
     removeOnFail: { count: 50 },
   });
@@ -98,7 +101,8 @@ if (isMainModule) {
     connection.disconnect();
     await closeDatabase();
     log.info('Shutdown complete');
-    process.exit(0);
+    // Force exit after 10s if connections don't drain
+    setTimeout(() => process.exit(1), 10_000).unref();
   }
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));

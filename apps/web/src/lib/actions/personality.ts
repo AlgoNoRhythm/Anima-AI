@@ -2,6 +2,7 @@
 
 import { createDatabase, personalityQueries } from '@anima-ai/database';
 import { createLogger } from '@anima-ai/shared';
+import { createCacheClient, invalidateProjectMeta } from '@anima-ai/cache';
 import { requireProjectAccess } from '../project-auth';
 import { z } from 'zod';
 
@@ -17,6 +18,10 @@ const updatePersonalitySchema = z.object({
   guardrails: z.record(z.unknown()).optional(),
   showDisclaimer: z.boolean().optional(),
   disclaimerText: z.string().max(500).optional(),
+  translations: z.record(z.enum(['de', 'fr', 'it']), z.object({
+    name: z.string().max(100).optional(),
+    disclaimerText: z.string().max(500).optional(),
+  }).optional()).optional(),
 });
 
 export async function updatePersonality(projectId: string, data: Record<string, unknown>) {
@@ -33,6 +38,10 @@ export async function updatePersonality(projectId: string, data: Record<string, 
 
     const db = createDatabase();
     await personalityQueries(db).upsert(projectId, parsed.data);
+
+    // Invalidate cached project meta so chat-api picks up changes
+    try { await invalidateProjectMeta(createCacheClient(), projectId); } catch { /* best-effort */ }
+
     return { success: true };
   } catch (error) {
     log.error('updatePersonality error', { error: error instanceof Error ? error.message : error });

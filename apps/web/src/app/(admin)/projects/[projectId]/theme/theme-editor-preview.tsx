@@ -130,6 +130,23 @@ export function ThemeEditorPreview({ state, projectName }: ThemeEditorPreviewPro
               {state.welcomeMessage}
             </p>
             <p className="text-[10px] mt-0.5" style={{ color: 'hsl(var(--chat-muted))' }}>Ask me anything.</p>
+            {state.suggestedQuestions.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1 justify-center">
+                {state.suggestedQuestions.map((q, i) => (
+                  <span
+                    key={i}
+                    className="rounded-full px-2 py-0.5 text-[9px]"
+                    style={{
+                      border: '1px solid hsl(var(--chat-accent) / 0.3)',
+                      background: 'hsl(var(--chat-surface))',
+                      color: 'hsl(var(--foreground))',
+                    }}
+                  >
+                    {q}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Mock messages */}
@@ -178,18 +195,10 @@ export function ThemeEditorPreview({ state, projectName }: ThemeEditorPreviewPro
                   <p>{msg.content}</p>
                   {'citation' in msg && msg.citation && (
                     <div className="mt-1.5 pt-1.5" style={{ borderTop: '1px solid hsl(var(--foreground) / 0.08)' }}>
-                      <div
-                        className="flex items-center gap-1.5 text-[10px] p-1.5 rounded-md"
-                        style={{
-                          background: 'hsl(var(--chat-surface) / 0.6)',
-                          border: '1px solid hsl(var(--chat-border))',
-                        }}
-                      >
-                        <FileText className="w-3 h-3 flex-shrink-0" style={{ color: 'hsl(var(--chat-accent))' }} />
-                        <span>
-                          <span className="font-medium" style={{ color: 'hsl(var(--foreground))' }}>{msg.citation.title}</span>
-                          <span style={{ color: 'hsl(var(--chat-muted))' }}> - p. {msg.citation.page}</span>
-                        </span>
+                      <div className="flex items-center gap-1 text-[10px]" style={{ color: 'hsl(var(--chat-muted))' }}>
+                        <FileText className="w-2.5 h-2.5" />
+                        <span>1 source</span>
+                        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
                       </div>
                     </div>
                   )}
@@ -232,9 +241,11 @@ export function ThemeEditorPreview({ state, projectName }: ThemeEditorPreviewPro
 
         {/* Footer */}
         <div className="py-1 text-center" style={{ background: 'hsl(var(--chat-surface))' }}>
-          <p className="text-[8px]" style={{ color: 'hsl(var(--chat-muted) / 0.6)' }}>
-            Powered by <span className="font-medium">Anima AI</span>
-          </p>
+          <span className="text-[8px]">
+            <span style={{ color: 'hsl(var(--chat-muted))', textDecoration: 'underline', textUnderlineOffset: '2px' }}>Leave a feedback</span>
+            <span style={{ color: 'hsl(var(--chat-muted) / 0.3)' }}> &middot; </span>
+            <span style={{ color: 'hsl(var(--chat-muted) / 0.6)' }}>Visit anima-ai.io</span>
+          </span>
         </div>
       </div>
     </div>

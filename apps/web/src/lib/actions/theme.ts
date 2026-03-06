@@ -2,6 +2,7 @@
 
 import { createDatabase, themeQueries } from '@anima-ai/database';
 import { createLogger } from '@anima-ai/shared';
+import { createCacheClient, invalidateProjectMeta } from '@anima-ai/cache';
 import { requireProjectAccess } from '../project-auth';
 import { z } from 'zod';
 
@@ -15,6 +16,12 @@ const updateThemeSchema = z.object({
   welcomeMessage: z.string().max(500).optional(),
   borderRadius: z.string().max(20).optional(),
   actionButtonLabel: z.string().max(50).optional(),
+  suggestedQuestions: z.array(z.string().max(200)).max(6).optional(),
+  translations: z.record(z.enum(['de', 'fr', 'it']), z.object({
+    welcomeMessage: z.string().max(500).optional(),
+    actionButtonLabel: z.string().max(50).optional(),
+    suggestedQuestions: z.array(z.string().max(200)).max(6).optional(),
+  }).optional()).optional(),
 });
 
 export async function updateTheme(projectId: string, data: Record<string, unknown>) {
@@ -31,6 +38,10 @@ export async function updateTheme(projectId: string, data: Record<string, unknow
 
     const db = createDatabase();
     await themeQueries(db).upsert(projectId, parsed.data);
+
+    // Invalidate cached project meta so chat-api picks up changes
+    try { await invalidateProjectMeta(createCacheClient(), projectId); } catch { /* best-effort */ }
+
     return { success: true };
   } catch (error) {
     log.error('updateTheme error', { error: error instanceof Error ? error.message : error });

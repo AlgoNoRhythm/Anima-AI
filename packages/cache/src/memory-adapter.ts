@@ -5,7 +5,9 @@ interface CacheEntry {
   expiresAt: number | null;
 }
 
-export function createMemoryCache(): CacheClient {
+const DEFAULT_MAX_ENTRIES = 10_000;
+
+export function createMemoryCache(maxEntries: number = DEFAULT_MAX_ENTRIES): CacheClient {
   const store = new Map<string, CacheEntry>();
 
   // Proactive cleanup: sweep expired entries every 60s
@@ -24,6 +26,24 @@ export function createMemoryCache(): CacheClient {
     return Date.now() > entry.expiresAt;
   }
 
+  /** Move key to end of Map (most recently used). */
+  function touch(key: string, entry: CacheEntry): void {
+    store.delete(key);
+    store.set(key, entry);
+  }
+
+  /** Evict oldest entries (front of Map) until under maxEntries. */
+  function evictIfNeeded(): void {
+    while (store.size > maxEntries) {
+      const oldest = store.keys().next().value;
+      if (oldest !== undefined) {
+        store.delete(oldest);
+      } else {
+        break;
+      }
+    }
+  }
+
   function getEntry(key: string): CacheEntry | null {
     const entry = store.get(key);
     if (!entry) return null;
@@ -31,6 +51,8 @@ export function createMemoryCache(): CacheClient {
       store.delete(key);
       return null;
     }
+    // Move to end (LRU touch)
+    touch(key, entry);
     return entry;
   }
 
@@ -41,10 +63,13 @@ export function createMemoryCache(): CacheClient {
     },
 
     async set(key, value, ttlSeconds) {
+      // Delete first so re-insert goes to end of Map
+      store.delete(key);
       store.set(key, {
         value,
         expiresAt: ttlSeconds ? Date.now() + ttlSeconds * 1000 : null,
       });
+      evictIfNeeded();
     },
 
     async del(key) {
@@ -55,10 +80,12 @@ export function createMemoryCache(): CacheClient {
       const entry = getEntry(key);
       const current = entry ? parseInt(entry.value, 10) : 0;
       const next = (isNaN(current) ? 0 : current) + 1;
+      store.delete(key);
       store.set(key, {
         value: String(next),
         expiresAt: entry?.expiresAt ?? null,
       });
+      evictIfNeeded();
       return next;
     },
 
@@ -75,9 +102,18 @@ export function createMemoryCache(): CacheClient {
 
     async keys(pattern) {
       const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$');
+      const now = Date.now();
       const result: string[] = [];
-      for (const [key] of store) {
-        if (regex.test(key) && getEntry(key)) {
+      // Snapshot keys to avoid mutation during iteration (getEntry does LRU touch)
+      const allKeys = [...store.keys()];
+      for (const key of allKeys) {
+        const entry = store.get(key);
+        if (!entry) continue;
+        if (entry.expiresAt !== null && now > entry.expiresAt) {
+          store.delete(key);
+          continue;
+        }
+        if (regex.test(key)) {
           result.push(key);
         }
       }

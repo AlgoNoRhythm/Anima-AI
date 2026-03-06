@@ -82,6 +82,12 @@ export async function processIndexing(job: Job<IndexingJobData>) {
     await job.updateProgress(100);
     log.info('Document tree built successfully', { documentId, nodeCount: result.tree.length, detectedEntity: result.detectedEntity });
 
+    // Invalidate cached document trees so chat picks up the new index
+    try {
+      const { createCacheClient, invalidateDocumentTrees } = await import('@anima-ai/cache');
+      await invalidateDocumentTrees(createCacheClient(), job.data.projectId);
+    } catch { /* best-effort — cache may not be available */ }
+
     return { documentId, nodeCount: result.tree.length };
   } catch (error) {
     log.error('Indexing failed', { documentId, message: (error as Error).message });

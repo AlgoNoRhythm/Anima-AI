@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { users } from '../schema/index';
 import type { Database } from '../client';
 
@@ -20,8 +20,8 @@ export function userQueries(db: Database) {
     },
 
     async count() {
-      const rows = await db.select().from(users);
-      return rows.length;
+      const rows = await db.select({ count: sql<number>`count(*)::int` }).from(users);
+      return rows[0]?.count ?? 0;
     },
 
     async update(id: string, data: { name?: string; passwordHash?: string }) {

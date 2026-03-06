@@ -3,6 +3,9 @@
 import { useRef, useState } from 'react';
 import type { ThemeState } from './theme-editor-types';
 import { FONT_OPTIONS } from './theme-editor-types';
+import { LocaleTabs } from '@/components/locale-tabs';
+import { TranslatableField } from '@/components/translatable-field';
+import type { SupportedLocale, ThemeTranslations } from '@/lib/locale/types';
 
 interface ThemeEditorControlsProps {
   state: ThemeState;
@@ -119,6 +122,80 @@ function ColorPicker({
   );
 }
 
+function SuggestedQuestionsEditor({
+  questions,
+  onChange,
+}: {
+  questions: string[];
+  onChange: (questions: string[]) => void;
+}) {
+  const [draft, setDraft] = useState('');
+
+  function addQuestion() {
+    const trimmed = draft.trim();
+    if (!trimmed || questions.length >= 6) return;
+    onChange([...questions, trimmed]);
+    setDraft('');
+  }
+
+  function removeQuestion(index: number) {
+    onChange(questions.filter((_, i) => i !== index));
+  }
+
+  return (
+    <div className="space-y-3">
+      {questions.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {questions.map((q, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-3 py-1 text-sm"
+            >
+              <span className="max-w-[200px] truncate">{q}</span>
+              <button
+                type="button"
+                onClick={() => removeQuestion(i)}
+                className="inline-flex items-center justify-center w-4 h-4 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                aria-label={`Remove "${q}"`}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {questions.length < 6 && (
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addQuestion();
+              }
+            }}
+            maxLength={200}
+            placeholder="e.g. How do I get started?"
+            className="flex-1 h-9 rounded-lg border border-input bg-background px-3 py-1.5 text-sm shadow-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          <button
+            type="button"
+            onClick={addQuestion}
+            disabled={!draft.trim()}
+            className="h-9 rounded-lg border border-input bg-background px-3 text-sm font-medium shadow-sm transition-all duration-200 hover:bg-accent hover:text-foreground disabled:opacity-50"
+          >
+            Add
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function isLightColor(hex: string): boolean {
   const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
   if (!m) return false;
@@ -126,6 +203,32 @@ function isLightColor(hex: string): boolean {
   const g = parseInt(m[2]!, 16);
   const b = parseInt(m[3]!, 16);
   return (r * 299 + g * 587 + b * 114) / 1000 > 150;
+}
+
+function getTranslation<K extends keyof ThemeTranslations>(
+  state: ThemeState,
+  locale: SupportedLocale,
+  field: K,
+): ThemeTranslations[K] | undefined {
+  if (locale === 'en') return undefined;
+  return state.translations[locale]?.[field];
+}
+
+function setTranslation<K extends keyof ThemeTranslations>(
+  state: ThemeState,
+  onChange: (partial: Partial<ThemeState>) => void,
+  locale: SupportedLocale,
+  field: K,
+  value: ThemeTranslations[K],
+) {
+  if (locale === 'en') return;
+  const current = state.translations[locale] ?? {};
+  onChange({
+    translations: {
+      ...state.translations,
+      [locale]: { ...current, [field]: value },
+    },
+  });
 }
 
 export function ThemeEditorControls({
@@ -136,8 +239,16 @@ export function ThemeEditorControls({
   onSave,
   message,
 }: ThemeEditorControlsProps) {
+  const [activeLocale, setActiveLocale] = useState<SupportedLocale>('en');
+
   return (
     <div className="space-y-8">
+      {/* Locale tabs */}
+      <div>
+        <label className="block text-xs font-medium text-muted-foreground mb-2">Translation Language</label>
+        <LocaleTabs activeLocale={activeLocale} onChange={setActiveLocale} />
+      </div>
+
       {/* Colors */}
       <section>
         <h3 className="text-sm font-semibold mb-4">Colors</h3>
@@ -250,30 +361,79 @@ export function ThemeEditorControls({
           )}
 
           {/* Welcome message */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Welcome Message</label>
-            <textarea
-              rows={2}
-              value={state.welcomeMessage}
-              onChange={(e) => onChange({ welcomeMessage: e.target.value })}
-              className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-          </div>
+          <TranslatableField locale={activeLocale}>
+            <div>
+              <label className="block text-sm font-medium mb-2">Welcome Message</label>
+              {activeLocale === 'en' ? (
+                <textarea
+                  rows={2}
+                  value={state.welcomeMessage}
+                  onChange={(e) => onChange({ welcomeMessage: e.target.value })}
+                  className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              ) : (
+                <textarea
+                  rows={2}
+                  value={getTranslation(state, activeLocale, 'welcomeMessage') ?? ''}
+                  onChange={(e) => setTranslation(state, onChange, activeLocale, 'welcomeMessage', e.target.value)}
+                  placeholder={state.welcomeMessage}
+                  className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              )}
+            </div>
+          </TranslatableField>
 
           {/* Action button label */}
-          <div>
-            <label className="block text-sm font-medium mb-1.5">Action Button Label</label>
-            <p className="text-xs text-muted-foreground mb-2">Shown in the header when documents are available (e.g. &quot;Open PDF&quot;, &quot;Manual&quot;, &quot;Menu&quot;).</p>
-            <input
-              type="text"
-              value={state.actionButtonLabel}
-              onChange={(e) => onChange({ actionButtonLabel: e.target.value })}
-              maxLength={50}
-              placeholder="Open PDF"
-              className="flex h-9 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm shadow-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-          </div>
+          <TranslatableField locale={activeLocale}>
+            <div>
+              <label className="block text-sm font-medium mb-1.5">Action Button Label</label>
+              <p className="text-xs text-muted-foreground mb-2">Shown in the header when documents are available (e.g. &quot;Open PDF&quot;, &quot;Manual&quot;, &quot;Menu&quot;).</p>
+              {activeLocale === 'en' ? (
+                <input
+                  type="text"
+                  value={state.actionButtonLabel}
+                  onChange={(e) => onChange({ actionButtonLabel: e.target.value })}
+                  maxLength={50}
+                  placeholder="Open PDF"
+                  className="flex h-9 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm shadow-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              ) : (
+                <input
+                  type="text"
+                  value={getTranslation(state, activeLocale, 'actionButtonLabel') ?? ''}
+                  onChange={(e) => setTranslation(state, onChange, activeLocale, 'actionButtonLabel', e.target.value)}
+                  maxLength={50}
+                  placeholder={state.actionButtonLabel}
+                  className="flex h-9 w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm shadow-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              )}
+            </div>
+          </TranslatableField>
         </div>
+      </section>
+
+      {/* Suggested Questions */}
+      <section className="border-t pt-6">
+        <h3 className="text-sm font-semibold mb-4">Suggested Questions</h3>
+        <p className="text-xs text-muted-foreground mb-3">Starter questions shown as pill chips in the welcome state. Max 6.</p>
+        {activeLocale === 'en' ? (
+          <SuggestedQuestionsEditor
+            questions={state.suggestedQuestions}
+            onChange={(questions) => onChange({ suggestedQuestions: questions })}
+          />
+        ) : (
+          <TranslatableField locale={activeLocale}>
+            <SuggestedQuestionsEditor
+              questions={getTranslation(state, activeLocale, 'suggestedQuestions') ?? []}
+              onChange={(questions) => setTranslation(state, onChange, activeLocale, 'suggestedQuestions', questions)}
+            />
+            {state.suggestedQuestions.length > 0 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                English: {state.suggestedQuestions.join(' / ')}
+              </p>
+            )}
+          </TranslatableField>
+        )}
       </section>
 
       {/* Status message */}

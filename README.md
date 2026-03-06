@@ -34,11 +34,13 @@ Think of it as giving a voice to objects that can't speak for themselves.
 - **Document Upload & Processing** -- Drag-and-drop upload (PDF, TXT, MD, HTML, DOCX). PDFs are parsed into per-page text via `pdf-parse` (with optional Docling service for higher-fidelity structure extraction).
 - **RAG-Powered Chat (PageIndex)** -- Retrieval-Augmented Generation using **PageIndex**, a custom RAG system that replaces traditional vector embeddings with an LLM-driven hierarchical page index. At indexing time, an LLM builds a tree of document sections with titles, summaries, and page ranges. At query time, the LLM searches the tree structure to find the most relevant nodes -- with automatic citation of source pages. No embedding model or vector database required.
 - **Streaming Responses with Markdown** -- Real-time SSE streaming with full markdown rendering (bold, lists, code blocks, tables) in chat bubbles.
-- **Customizable Personality** -- Define system prompts, tone (professional, friendly, casual, formal, technical), temperature, guardrails, blocked topics, and suggested questions.
-- **Theme Editor** -- Brand your chatbot with custom colors, fonts, logos, border radius, welcome messages, and action button labels. Live preview in the admin dashboard.
+- **Customizable Personality** -- Define system prompts, tone (professional, friendly, casual, formal, technical), temperature, guardrails, blocked topics, and suggested questions. Personality name and disclaimer text are translatable.
+- **Theme Editor** -- Brand your chatbot with custom colors, fonts, logos, border radius, welcome messages, and action button labels. Live preview in the admin dashboard. All user-facing text (welcome message, action button label, suggested questions) is translatable per language.
+- **Feedback Surveys** -- Configure post-conversation feedback with star ratings and free-text questions. Each rating and question is individually toggleable as required/optional. Responses are collected per session and viewable in the analytics dashboard.
 - **QR Code Generator** -- Create styled QR codes (square, dots, rounded) with custom colors, title, and subtitle. Download as SVG or PNG.
-- **Analytics Dashboard** -- Track sessions, messages, and user feedback. Export conversations as CSV.
-- **Embeddable Widget** -- Embed your chatbot in any website via an iframe. Fully themed.
+- **Analytics Dashboard** -- Track sessions, messages, and feedback survey responses with time-range filtering and visual charts. Export conversations as CSV.
+- **Multi-Language Chat UI** -- The public chat interface supports English, German, French, and Italian. Language is resolved automatically from `?lang=` query parameter or the browser's `Accept-Language` header. All static UI strings and admin-configured content (welcome messages, suggested questions, personality name, disclaimer, feedback labels) are translatable via language tabs in the admin editors.
+- **Embeddable Widget** -- Embed your chatbot in any website via an iframe. Fully themed and localized.
 - **Team Collaboration** -- Invite team members as editors or viewers via link. Role-based access control (owner/editor/viewer) with per-action permissions.
 - **Project Modes** -- Configure projects as chat-only, PDF-only, or both. Mode is enforced in both the UI and API.
 - **Per-Project Rate Limiting** -- Set custom rate limits per project via the admin settings. Independent counters per project and user.
@@ -361,6 +363,7 @@ User scans QR / opens chat URL
 | `/projects/[id]/documents` | Admin | Document management |
 | `/projects/[id]/personality` | Admin | Chatbot personality editor |
 | `/projects/[id]/theme` | Admin | Visual theme editor |
+| `/projects/[id]/feedback` | Admin | Feedback survey configuration |
 | `/projects/[id]/qr` | Admin | QR code generator + embed codes |
 | `/projects/[id]/team` | Admin | Team members + invitations (owner only) |
 | `/projects/[id]/analytics` | Admin | Usage analytics |

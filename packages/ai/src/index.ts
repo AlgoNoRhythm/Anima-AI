@@ -7,6 +7,7 @@ export { buildSystemPrompt } from './personality';
 export { generateFollowUps } from './follow-ups';
 export { buildDocumentTree } from './page-index/tree-builder';
 export { searchTree } from './page-index/tree-search';
+export { CircuitBreaker, CircuitOpenError, llmCircuitBreaker } from './page-index/circuit-breaker';
 export { DEFAULT_PAGE_INDEX_CONFIG } from './page-index/types';
 export type {
   PageContent,

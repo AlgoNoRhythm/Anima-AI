@@ -12,68 +12,44 @@ function slugify(text: string): string {
 }
 
 export function NewProjectForm({ serverError }: { serverError?: string }) {
-  const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
-  const [slugTouched, setSlugTouched] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const slugRef = useRef<HTMLInputElement>(null);
+  const slugTouched = useRef(false);
   const autoGenEnabled = useRef(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const validateField = useCallback((field: string, value: string) => {
-    const newErrors = { ...errors };
-
-    switch (field) {
-      case 'name':
-        if (!value.trim()) {
-          newErrors.name = 'Project name is required';
-        } else {
-          delete newErrors.name;
-        }
-        break;
-      case 'slug':
-        if (!value.trim()) {
-          newErrors.slug = 'URL slug is required';
-        } else if (!/^[a-z0-9-]+$/.test(value)) {
-          newErrors.slug = 'Slug must be lowercase letters, numbers, and hyphens';
-        } else {
-          delete newErrors.slug;
-        }
-        break;
-    }
-
-    setErrors(newErrors);
-    return newErrors;
-  }, [errors]);
-
-  const handleNameChange = useCallback((value: string) => {
-    setName(value);
-    if (autoGenEnabled.current && !slugTouched) {
-      setSlug(slugify(value));
-    }
-  }, [slugTouched]);
-
-  const handleSlugChange = useCallback((value: string) => {
-    setSlugTouched(true);
-    setSlug(value);
+  const clearErrors = useCallback(() => {
+    setErrors((prev) => (Object.keys(prev).length > 0 ? {} : prev));
   }, []);
 
-  const handleSubmit = useCallback((e: React.FormEvent<HTMLFormElement>) => {
-    const nameErrors = validateField('name', name);
-    const slugErrors = validateField('slug', slug);
-    const allErrors = { ...nameErrors, ...slugErrors };
+  const handleNameChange = useCallback(() => {
+    const value = nameRef.current?.value ?? '';
+    if (autoGenEnabled.current && !slugTouched.current && slugRef.current) {
+      slugRef.current.value = slugify(value);
+    }
+    clearErrors();
+  }, [clearErrors]);
 
-    // Re-validate all fields
-    if (!name.trim()) allErrors.name = 'Project name is required';
-    if (!slug.trim()) allErrors.slug = 'URL slug is required';
-    else if (!/^[a-z0-9-]+$/.test(slug)) allErrors.slug = 'Slug must be lowercase letters, numbers, and hyphens';
+  const handleSlugChange = useCallback(() => {
+    slugTouched.current = true;
+    clearErrors();
+  }, [clearErrors]);
+
+  const handleSubmit = useCallback((e: React.FormEvent<HTMLFormElement>) => {
+    const nameVal = nameRef.current?.value ?? '';
+    const slugVal = slugRef.current?.value ?? '';
+
+    const allErrors: Record<string, string> = {};
+    if (!nameVal.trim()) allErrors.name = 'Project name is required';
+    if (!slugVal.trim()) allErrors.slug = 'URL slug is required';
+    else if (!/^[a-z0-9-]+$/.test(slugVal)) allErrors.slug = 'Slug must be lowercase letters, numbers, and hyphens';
 
     setErrors(allErrors);
 
     if (Object.keys(allErrors).length > 0) {
       e.preventDefault();
     }
-  }, [name, slug, validateField]);
-
-  const hasErrors = Object.keys(errors).length > 0;
+  }, []);
 
   const inputClass =
     'flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm shadow-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:shadow-elevated';
@@ -95,13 +71,13 @@ export function NewProjectForm({ serverError }: { serverError?: string }) {
               Project Name
             </label>
             <input
+              ref={nameRef}
               id="name"
               name="name"
               type="text"
               required
-              value={name}
-              onChange={(e) => handleNameChange(e.target.value)}
-              onBlur={() => { autoGenEnabled.current = false; validateField('name', name); }}
+              onChange={handleNameChange}
+              onBlur={() => { autoGenEnabled.current = false; }}
               className={errors.name ? inputErrorClass : inputClass}
               placeholder="My Coffee Machine Manual"
             />
@@ -118,13 +94,12 @@ export function NewProjectForm({ serverError }: { serverError?: string }) {
               URL Slug
             </label>
             <input
+              ref={slugRef}
               id="slug"
               name="slug"
               type="text"
               required
-              value={slug}
-              onChange={(e) => handleSlugChange(e.target.value)}
-              onBlur={() => validateField('slug', slug)}
+              onChange={handleSlugChange}
               className={errors.slug ? inputErrorClass : inputClass}
               placeholder="my-coffee-machine"
             />
@@ -171,7 +146,7 @@ export function NewProjectForm({ serverError }: { serverError?: string }) {
           <div className="flex gap-3 pt-2">
             <button
               type="submit"
-              disabled={hasErrors}
+              disabled={Object.keys(errors).length > 0}
               className="rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-all duration-200 hover:shadow-md hover:bg-primary/90 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
             >
               Create Project

@@ -28,9 +28,10 @@ export function createDatabase(url?: string): Database {
 
   const pool = new pg.Pool({
     connectionString: connectionUrl,
-    max: parseInt(process.env.DB_POOL_MAX || '20', 10),
+    max: parseInt(process.env.DB_POOL_MAX || '50', 10),
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
+    statement_timeout: 30_000, // Kill queries after 30s to prevent connection hogging
   });
   g.__animaDbPool = pool;
   g.__animaDb = drizzle(pool, { schema });

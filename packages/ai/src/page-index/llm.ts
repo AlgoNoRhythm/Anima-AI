@@ -1,9 +1,11 @@
 import { generateText } from 'ai';
 import { getModel } from '../providers';
 import type { PageIndexConfig } from './types';
+import { llmCircuitBreaker, CircuitOpenError } from './circuit-breaker';
 
 const MAX_RETRIES = 5;
 const RETRY_DELAY_MS = 1000;
+const LLM_TIMEOUT_MS = 15_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -15,15 +17,29 @@ function sleep(ms: number): Promise<void> {
 export async function callLLM(prompt: string, config: PageIndexConfig): Promise<string> {
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
+      llmCircuitBreaker.canExecute();
+
       const model = getModel(config.provider, config.model, config.apiKey);
-      const result = await generateText({
-        model,
-        prompt,
-        temperature: 0,
-        maxTokens: 4096,
-      });
-      return result.text;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+      try {
+        const result = await generateText({
+          model,
+          prompt,
+          temperature: 0,
+          maxTokens: 4096,
+          abortSignal: controller.signal,
+        });
+        llmCircuitBreaker.recordSuccess();
+        return result.text;
+      } finally {
+        clearTimeout(timer);
+      }
     } catch (error) {
+      if (error instanceof CircuitOpenError) {
+        throw new Error('LLM provider temporarily unavailable');
+      }
+      llmCircuitBreaker.recordFailure();
       if (attempt < MAX_RETRIES - 1) {
         await sleep(RETRY_DELAY_MS * (attempt + 1));
         continue;
@@ -43,15 +59,29 @@ export async function callLLMWithFinishReason(
 ): Promise<{ text: string; finishReason: string }> {
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
+      llmCircuitBreaker.canExecute();
+
       const model = getModel(config.provider, config.model, config.apiKey);
-      const result = await generateText({
-        model,
-        prompt,
-        temperature: 0,
-        maxTokens: 4096,
-      });
-      return { text: result.text, finishReason: result.finishReason };
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+      try {
+        const result = await generateText({
+          model,
+          prompt,
+          temperature: 0,
+          maxTokens: 4096,
+          abortSignal: controller.signal,
+        });
+        llmCircuitBreaker.recordSuccess();
+        return { text: result.text, finishReason: result.finishReason };
+      } finally {
+        clearTimeout(timer);
+      }
     } catch (error) {
+      if (error instanceof CircuitOpenError) {
+        throw new Error('LLM provider temporarily unavailable');
+      }
+      llmCircuitBreaker.recordFailure();
       if (attempt < MAX_RETRIES - 1) {
         await sleep(RETRY_DELAY_MS * (attempt + 1));
         continue;

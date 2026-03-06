@@ -11,3 +11,5 @@ export * from './analytics-events';
 export * from './api-keys';
 export * from './project-members';
 export * from './project-invitations';
+export * from './feedback-configs';
+export * from './feedback-responses';

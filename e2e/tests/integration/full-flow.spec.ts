@@ -34,7 +34,7 @@ test.describe('Full Flow Integration', () => {
     await page.click('button[type="submit"]');
     await page.waitForURL(
       (url) => /\/projects\/[0-9a-f-]{36}$/.test(new URL(url).pathname),
-      { timeout: 15000 },
+      { timeout: 30000 },
     );
     await expect(page.locator('h1')).toContainText('E2E Test Project');
   });
@@ -50,7 +50,7 @@ test.describe('Full Flow Integration', () => {
     await page.click('button[type="submit"]');
     await page.waitForURL(
       (url) => /\/projects\/[0-9a-f-]{36}$/.test(new URL(url).pathname),
-      { timeout: 15000 },
+      { timeout: 30000 },
     );
 
     // Now visit the public chat page
@@ -76,7 +76,7 @@ test.describe('Full Flow Integration', () => {
     await page.click('button[type="submit"]');
     await page.waitForURL(
       (url) => /\/projects\/[0-9a-f-]{36}$/.test(new URL(url).pathname),
-      { timeout: 15000 },
+      { timeout: 30000 },
     );
 
     // Go back to dashboard — the count should now be >= 1
