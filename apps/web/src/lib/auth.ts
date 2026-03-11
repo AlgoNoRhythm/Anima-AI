@@ -1,5 +1,4 @@
 import NextAuth from 'next-auth';
-import { decode as defaultDecode } from 'next-auth/jwt';
 import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { createDatabase, userQueries } from '@anima-ai/database';
@@ -55,16 +54,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   session: {
     strategy: 'jwt',
-  },
-  jwt: {
-    async decode(params) {
-      try {
-        return await defaultDecode(params);
-      } catch {
-        // Stale cookie from a previous AUTH_SECRET — discard it
-        return null;
-      }
-    },
   },
   callbacks: {
     async jwt({ token, user }) {
