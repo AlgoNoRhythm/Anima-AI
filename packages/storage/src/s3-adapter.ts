@@ -26,7 +26,7 @@ export function createS3Storage(options: S3StorageOptions): StorageClient {
       accessKeyId: options.accessKeyId,
       secretAccessKey: options.secretAccessKey,
     },
-    forcePathStyle: options.forcePathStyle ?? true,
+    forcePathStyle: options.forcePathStyle ?? (process.env.STORAGE_FORCE_PATH_STYLE !== 'false'),
   });
 
   const bucket = options.bucket;

@@ -1,0 +1,10 @@
+[build]
+builder = "NIXPACKS"
+buildCommand = "pnpm install --frozen-lockfile"
+watchPatterns = ["apps/chat-api/**", "packages/**"]
+
+[deploy]
+startCommand = "pnpm --filter @anima-ai/chat-api start"
+healthcheckPath = "/health"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

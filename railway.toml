@@ -1,0 +1,9 @@
+# Root railway.toml — shared defaults for all services.
+# Each service overrides via its own railway.toml in apps/<service>/.
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

@@ -6,7 +6,7 @@ import { flushAnalytics, stopAnalyticsBuffer } from './services/analytics-buffer
 
 const log = createLogger('chat-api');
 const app = createApp();
-const port = parseInt(process.env.CHAT_API_PORT || '3001', 10);
+const port = parseInt(process.env.PORT || process.env.CHAT_API_PORT || '3001', 10);
 
 if (!process.env.REDIS_URL && process.env.NODE_ENV === 'production') {
   log.error(

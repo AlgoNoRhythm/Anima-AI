@@ -1,0 +1,9 @@
+[build]
+builder = "NIXPACKS"
+buildCommand = "pnpm install --frozen-lockfile && pnpm --filter @anima-ai/web... build"
+
+[deploy]
+startCommand = "pnpm --filter @anima-ai/web start"
+healthcheckPath = "/"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
