@@ -146,7 +146,19 @@ export function useChat(projectSlug: string, translations?: ChatTranslations) {
         .slice(0, -1) // exclude the current user message (sent separately)
         .map((m) => ({ role: m.role, content: m.content }));
 
-      const response = await sendMessage(projectSlug, content, token, historyForApi);
+      let response = await sendMessage(projectSlug, content, token, historyForApi);
+
+      // Session expired — clear stale state, get a fresh session, resend
+      if (response.status === 401) {
+        sessionTokenRef.current = null;
+        removeFromStorage(STORAGE_KEY_SESSION(projectSlug));
+        removeFromStorage(STORAGE_KEY_MESSAGES(projectSlug));
+        setMessages([userMessage]);
+
+        const newToken = await initSession();
+        response = await sendMessage(projectSlug, content, newToken, []);
+      }
+
       if (!response.ok) {
         if (response.status === 429) {
           let retryAfter: number | null = null;
