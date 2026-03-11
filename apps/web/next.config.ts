@@ -13,7 +13,6 @@ const nextConfig: NextConfig = {
     'drizzle-orm',
     'pg',
     'bcryptjs',
-    'next-auth',
     'pdf-parse',
     'ioredis',
     '@aws-sdk/client-s3',
