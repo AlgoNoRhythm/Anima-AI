@@ -18,21 +18,27 @@ export async function enqueueProcessing(
 
   if (redisUrl) {
     // Production mode: enqueue to BullMQ (optional deps, only available when REDIS_URL is set)
-    // @ts-expect-error -- bullmq is an optional production dependency
-    const { Queue } = await import(/* webpackIgnore: true */ 'bullmq');
-    // @ts-expect-error -- ioredis is an optional production dependency
-    const IORedis = (await import(/* webpackIgnore: true */ 'ioredis')).default;
-    const connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
+    try {
+      // @ts-expect-error -- bullmq is an optional production dependency
+      const { Queue } = await import(/* webpackIgnore: true */ 'bullmq');
+      // @ts-expect-error -- ioredis is an optional production dependency
+      const IORedis = (await import(/* webpackIgnore: true */ 'ioredis')).default;
+      const connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
 
-    const pdfQueue = new Queue('pdf-processing', { connection });
-    await pdfQueue.add('process-pdf', {
-      documentId,
-      projectId,
-      storageUrl,
-      filename,
-    });
-    await pdfQueue.close();
-    await connection.quit();
+      const pdfQueue = new Queue('pdf-processing', { connection });
+      await pdfQueue.add('process-pdf', {
+        documentId,
+        projectId,
+        storageUrl,
+        filename,
+      });
+      log.info('Job enqueued', { documentId, projectId });
+      await pdfQueue.close();
+      await connection.quit();
+    } catch (err) {
+      log.error('Failed to enqueue job', { documentId, error: err instanceof Error ? err.message : err });
+      throw err;
+    }
   } else if (pdfBuffer) {
     // Local mode: process synchronously in background
     // Fire and forget - don't await so the upload response returns immediately
