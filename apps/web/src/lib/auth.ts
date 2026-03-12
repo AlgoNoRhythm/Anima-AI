@@ -3,6 +3,11 @@ import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { createDatabase, userQueries } from '@anima-ai/database';
 
+// Debug: log secret availability on startup
+console.log('[auth] AUTH_SECRET length:', process.env.AUTH_SECRET?.length ?? 'MISSING');
+console.log('[auth] NEXTAUTH_SECRET length:', process.env.NEXTAUTH_SECRET?.length ?? 'MISSING');
+console.log('[auth] AUTH_SECRET first 4:', process.env.AUTH_SECRET?.slice(0, 4) ?? 'NONE');
+
 // Fail fast: reject insecure AUTH_SECRET in production
 if (
   process.env.NODE_ENV === 'production' &&
