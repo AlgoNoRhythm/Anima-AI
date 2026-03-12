@@ -132,7 +132,7 @@ export async function handleChat(request: ChatRequest): Promise<ChatResponse> {
   }
 
   // Build PersonalityConfig for the RAG pipeline
-  const personalityConfig: PersonalityConfig = personality
+  let personalityConfig: PersonalityConfig = personality
     ? (() => {
         const p = personality as any;
         const guardrails = (p.guardrails ?? {}) as Guardrails;
