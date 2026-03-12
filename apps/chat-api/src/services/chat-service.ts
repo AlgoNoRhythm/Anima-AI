@@ -197,7 +197,9 @@ export async function handleChat(request: ChatRequest): Promise<ChatResponse> {
   } catch (err) {
     // Check if we can fall back to env var
     const provider = personalityConfig.modelProvider as string;
-    const envKey = provider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
+    const envKey = provider === 'anthropic'
+      ? (process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY)
+      : (process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY);
     if (envKey) {
       log.warn('Failed to decrypt stored API key, falling back to env key', { provider });
     } else {

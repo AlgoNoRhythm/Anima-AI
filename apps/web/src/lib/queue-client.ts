@@ -20,9 +20,9 @@ export async function enqueueProcessing(
     // Production mode: enqueue to BullMQ (optional deps, only available when REDIS_URL is set)
     try {
       // @ts-expect-error -- bullmq is an optional production dependency
-      const { Queue } = await import(/* webpackIgnore: true */ 'bullmq');
+      const { Queue } = await import('bullmq');
       // @ts-expect-error -- ioredis is an optional production dependency
-      const IORedis = (await import(/* webpackIgnore: true */ 'ioredis')).default;
+      const IORedis = (await import('ioredis')).default;
       const connection = new IORedis(redisUrl, { maxRetriesPerRequest: null });
 
       const pdfQueue = new Queue('pdf-processing', { connection });

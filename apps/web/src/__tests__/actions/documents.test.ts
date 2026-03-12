@@ -282,7 +282,7 @@ describe('uploadDocument', () => {
       const result = await uploadDocument(PROJECT_ID, makeFormData(file));
       expect(result).toEqual({
         success: false,
-        error: 'Anthropic API key is required for document processing. Add it in Settings or set ANTHROPIC_API_KEY environment variable.',
+        error: 'An AI provider API key is required for document processing. Set ANTHROPIC_API_KEY or OPENAI_API_KEY in your environment, or add one in Settings.',
       });
     });
 

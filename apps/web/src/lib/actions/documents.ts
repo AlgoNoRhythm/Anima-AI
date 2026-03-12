@@ -127,7 +127,7 @@ export async function uploadDocument(projectId: string, formData: FormData) {
 
     // Determine which provider the project uses so we fetch the right API key
     const personality = await personalityQueries(db).findByProjectId(projectId);
-    const provider = (personality?.modelProvider ?? DEFAULT_MODEL_PROVIDER) as string;
+    let provider = (personality?.modelProvider ?? DEFAULT_MODEL_PROVIDER) as string;
 
     // Retrieve API key for indexing: stored key (Settings) takes priority over env var
     let indexingApiKey: string | undefined;
@@ -140,19 +140,21 @@ export async function uploadDocument(projectId: string, formData: FormData) {
       log.warn('Failed to retrieve stored API key', { error: keyErr instanceof Error ? keyErr.message : String(keyErr) });
     }
 
-    // Fall back to env var
+    // Fall back to env var — prefer the project's provider, then try the other
     if (!indexingApiKey) {
-      indexingApiKey = provider === 'anthropic'
-        ? process.env.ANTHROPIC_API_KEY
-        : process.env.OPENAI_API_KEY;
+      if (provider === 'anthropic') {
+        indexingApiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY;
+        if (!process.env.ANTHROPIC_API_KEY && process.env.OPENAI_API_KEY) provider = 'openai';
+      } else {
+        indexingApiKey = process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY;
+        if (!process.env.OPENAI_API_KEY && process.env.ANTHROPIC_API_KEY) provider = 'anthropic';
+      }
     }
 
     if (!indexingApiKey) {
-      const providerLabel = provider === 'anthropic' ? 'Anthropic' : 'OpenAI';
-      const envVar = provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
       return {
         success: false,
-        error: `${providerLabel} API key is required for document processing. Add it in Settings or set ${envVar} environment variable.`,
+        error: 'An AI provider API key is required for document processing. Set ANTHROPIC_API_KEY or OPENAI_API_KEY in your environment, or add one in Settings.',
       };
     }
 
@@ -284,7 +286,7 @@ export async function reprocessDocument(documentId: string) {
 
     // Determine provider and API key for reprocessing
     const personality = await personalityQueries(db).findByProjectId(doc.projectId);
-    const reProvider = (personality?.modelProvider ?? DEFAULT_MODEL_PROVIDER) as string;
+    let reProvider = (personality?.modelProvider ?? DEFAULT_MODEL_PROVIDER) as string;
     let reApiKey: string | undefined;
     try {
       const storedKey = await apiKeyQueries(db).findByUserAndProvider(userId, reProvider);
@@ -293,7 +295,13 @@ export async function reprocessDocument(documentId: string) {
       }
     } catch { /* fall through to env */ }
     if (!reApiKey) {
-      reApiKey = reProvider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
+      if (reProvider === 'anthropic') {
+        reApiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY;
+        if (!process.env.ANTHROPIC_API_KEY && process.env.OPENAI_API_KEY) reProvider = 'openai';
+      } else {
+        reApiKey = process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY;
+        if (!process.env.OPENAI_API_KEY && process.env.ANTHROPIC_API_KEY) reProvider = 'anthropic';
+      }
     }
 
     // Enqueue processing again

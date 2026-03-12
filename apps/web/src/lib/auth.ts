@@ -3,11 +3,6 @@ import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { createDatabase, userQueries } from '@anima-ai/database';
 
-// Debug: log secret availability on startup
-console.log('[auth] AUTH_SECRET length:', process.env.AUTH_SECRET?.length ?? 'MISSING');
-console.log('[auth] NEXTAUTH_SECRET length:', process.env.NEXTAUTH_SECRET?.length ?? 'MISSING');
-console.log('[auth] AUTH_SECRET first 4:', process.env.AUTH_SECRET?.slice(0, 4) ?? 'NONE');
-
 // Fail fast: reject insecure AUTH_SECRET in production
 if (
   process.env.NODE_ENV === 'production' &&
@@ -29,27 +24,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        console.log('[auth] authorize START');
         const email = credentials?.email as string | undefined;
         const password = credentials?.password as string | undefined;
-        if (!email || !password) {
-          console.log('[auth] missing credentials');
-          return null;
-        }
+        if (!email || !password) return null;
 
-        console.log('[auth] db lookup');
         const db = createDatabase();
         const users = userQueries(db);
         const user = await users.findByEmail(email);
-        console.log('[auth] user found:', !!user);
         if (!user) return null;
 
-        console.log('[auth] bcrypt compare starting');
         const valid = await bcrypt.compare(password, user.passwordHash);
-        console.log('[auth] bcrypt done:', valid);
         if (!valid) return null;
 
-        console.log('[auth] authorize SUCCESS');
         return { id: user.id, email: user.email, name: user.name };
       },
     }),
