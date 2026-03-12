@@ -154,8 +154,18 @@ export async function processDocumentLocally(documentId: string, pdfBuffer: Buff
       })),
     );
 
-    // Build tree index — use the project's configured provider if given
-    const resolvedProvider = (process.env.INDEXING_PROVIDER || provider || DEFAULT_PAGE_INDEX_CONFIG.provider) as 'openai' | 'anthropic';
+    // Build tree index — use the project's configured provider, fall back if no key available
+    let resolvedProvider = (process.env.INDEXING_PROVIDER || provider || DEFAULT_PAGE_INDEX_CONFIG.provider) as 'openai' | 'anthropic';
+    if (!apiKey) {
+      const preferredEnvKey = resolvedProvider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
+      if (!preferredEnvKey) {
+        const altProvider = resolvedProvider === 'anthropic' ? 'openai' : 'anthropic';
+        const altEnvKey = altProvider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
+        if (altEnvKey) {
+          resolvedProvider = altProvider;
+        }
+      }
+    }
     const defaultModelForProvider = MODEL_OPTIONS[resolvedProvider]?.[0]?.value ?? DEFAULT_PAGE_INDEX_CONFIG.model;
     const config = {
       ...DEFAULT_PAGE_INDEX_CONFIG,

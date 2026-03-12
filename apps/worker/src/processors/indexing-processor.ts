@@ -55,8 +55,17 @@ export async function processIndexing(job: Job<IndexingJobData>) {
 
     await job.updateProgress(20);
 
-    // Build the document tree — use the project's provider if given
-    const resolvedProvider = (process.env.INDEXING_PROVIDER || provider || DEFAULT_PAGE_INDEX_CONFIG.provider) as 'openai' | 'anthropic';
+    // Build the document tree — use the project's provider, fall back if no key available
+    let resolvedProvider = (process.env.INDEXING_PROVIDER || provider || DEFAULT_PAGE_INDEX_CONFIG.provider) as 'openai' | 'anthropic';
+    const preferredEnvKey = resolvedProvider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
+    if (!preferredEnvKey) {
+      const altProvider = resolvedProvider === 'anthropic' ? 'openai' : 'anthropic';
+      const altEnvKey = altProvider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
+      if (altEnvKey) {
+        log.info('Switching to available provider', { from: resolvedProvider, to: altProvider });
+        resolvedProvider = altProvider;
+      }
+    }
     const defaultModelForProvider = MODEL_OPTIONS[resolvedProvider]?.[0]?.value ?? DEFAULT_PAGE_INDEX_CONFIG.model;
     const config = {
       ...DEFAULT_PAGE_INDEX_CONFIG,

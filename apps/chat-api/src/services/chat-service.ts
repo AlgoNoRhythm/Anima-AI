@@ -2,7 +2,7 @@ import { createDecipheriv } from 'node:crypto';
 import { createDatabase, projectQueries, personalityQueries, documentQueries, messageQueries, apiKeyQueries } from '@anima-ai/database';
 import { ragPipeline } from '@anima-ai/ai';
 import type { PersonalityConfig, Guardrails } from '@anima-ai/ai';
-import { DEFAULT_PERSONALITY, DEFAULT_GUARDRAILS, createLogger } from '@anima-ai/shared';
+import { DEFAULT_PERSONALITY, DEFAULT_GUARDRAILS, MODEL_OPTIONS, createLogger } from '@anima-ai/shared';
 import { createCacheClient, getCachedProject, setCachedProject, getCachedProjectMeta, setCachedProjectMeta } from '@anima-ai/cache';
 import { queueAnalyticsEvent } from './analytics-buffer.js';
 
@@ -184,26 +184,62 @@ export async function handleChat(request: ChatRequest): Promise<ChatResponse> {
     eventType: 'message_sent',
   });
 
-  // Load the project owner's stored API key for the configured provider (if any)
+  // Load the project owner's API key — prefer the personality's configured provider
   let ownerApiKey: string | undefined;
+  let resolvedProvider = personalityConfig.modelProvider as string;
   try {
     const storedKey = await apiKeyQueries(db).findByUserAndProvider(
       project.userId,
-      personalityConfig.modelProvider as string,
+      resolvedProvider,
     );
     if (storedKey) {
       ownerApiKey = decryptApiKey(storedKey.encryptedKey);
     }
   } catch (err) {
-    // Check if we can fall back to env var
-    const provider = personalityConfig.modelProvider as string;
-    const envKey = provider === 'anthropic'
-      ? (process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY)
-      : (process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY);
+    log.warn('Failed to decrypt stored API key', { provider: resolvedProvider });
+  }
+
+  // Try env var for configured provider
+  if (!ownerApiKey) {
+    const envKey = resolvedProvider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
     if (envKey) {
-      log.warn('Failed to decrypt stored API key, falling back to env key', { provider });
-    } else {
-      throw new Error(`Failed to decrypt stored API key and no fallback environment variable is configured. Please re-save your API key in Settings.`);
+      ownerApiKey = envKey;
+    }
+  }
+
+  // Fall back to other provider (stored key, then env var) — switch provider + model
+  if (!ownerApiKey) {
+    const altProvider = resolvedProvider === 'anthropic' ? 'openai' : 'anthropic';
+    try {
+      const altKey = await apiKeyQueries(db).findByUserAndProvider(project.userId, altProvider);
+      if (altKey) {
+        ownerApiKey = decryptApiKey(altKey.encryptedKey);
+        resolvedProvider = altProvider;
+      }
+    } catch { /* fall through */ }
+    if (!ownerApiKey) {
+      const altEnv = altProvider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
+      if (altEnv) {
+        ownerApiKey = altEnv;
+        resolvedProvider = altProvider;
+      }
+    }
+  }
+
+  if (!ownerApiKey) {
+    throw new Error('No AI provider API key is configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY in your environment, or add one in Settings.');
+  }
+
+  // If we had to switch provider, update personality to use that provider's default model
+  if (resolvedProvider !== personalityConfig.modelProvider) {
+    const altDefaultModel = MODEL_OPTIONS[resolvedProvider]?.[0]?.value;
+    if (altDefaultModel) {
+      personalityConfig = {
+        ...personalityConfig,
+        modelProvider: resolvedProvider as 'openai' | 'anthropic',
+        modelName: altDefaultModel,
+      };
+      log.info('Switched to available provider', { from: personalityConfig.modelProvider, to: resolvedProvider, model: altDefaultModel });
     }
   }
 
