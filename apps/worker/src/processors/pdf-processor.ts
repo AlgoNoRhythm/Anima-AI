@@ -135,6 +135,7 @@ export async function processPdf(job: Job<PdfJobData>) {
     await indexingQueue.add('build-tree-index', {
       documentId,
       projectId,
+      provider: job.data.provider,
     });
 
     await job.updateProgress(100);

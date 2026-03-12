@@ -9,6 +9,7 @@ export interface PdfJobData {
   projectId: string;
   storageUrl: string;
   filename: string;
+  provider?: string;
 }
 
 export interface IndexingJobData {

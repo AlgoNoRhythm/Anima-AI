@@ -31,6 +31,7 @@ export async function enqueueProcessing(
         projectId,
         storageUrl,
         filename,
+        provider,
       });
       log.info('Job enqueued', { documentId, projectId });
       await pdfQueue.close();
