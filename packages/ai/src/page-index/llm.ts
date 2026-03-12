@@ -5,7 +5,7 @@ import { llmCircuitBreaker, CircuitOpenError } from './circuit-breaker';
 
 const MAX_RETRIES = 5;
 const RETRY_DELAY_MS = 1000;
-const LLM_TIMEOUT_MS = 15_000;
+const LLM_TIMEOUT_MS = 60_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
