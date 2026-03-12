@@ -113,6 +113,9 @@ export async function ragPipeline(
     messages,
     temperature: personality.temperature,
     maxTokens: personality.guardrails.maxResponseLength,
+    onError: ({ error }) => {
+      console.error('[rag-pipeline] streamText error:', error);
+    },
   });
 
   return {
