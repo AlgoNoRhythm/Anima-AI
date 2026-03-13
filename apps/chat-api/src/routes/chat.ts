@@ -54,9 +54,11 @@ chatRoutes.post('/:projectSlug', rateLimiter(), validateSession(), async (c) => 
     .filter((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
     .slice(-10);
 
-  // Disable proxy buffering so SSE chunks stream in real-time
+  // Ensure SSE headers are set so proxies (Railway, Cloudflare) don't buffer the response
+  c.header('Content-Type', 'text/event-stream; charset=utf-8');
   c.header('X-Accel-Buffering', 'no');
   c.header('Cache-Control', 'no-cache, no-transform');
+  c.header('Connection', 'keep-alive');
 
   // 5-minute max stream duration to prevent slow-client DoS
   const STREAM_TIMEOUT_MS = 5 * 60 * 1000;
