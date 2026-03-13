@@ -133,17 +133,34 @@ export async function ragPipeline(
         yield chunk;
       }
     } catch (err) {
-      // Re-throw stream iteration errors with a user-friendly message
       const msg = err instanceof Error ? err.message : String(err);
       throw new Error(`AI provider error: ${msg}`);
     }
-    // If the provider silently failed, surface the captured error
+
+    if (!hasChunks) {
+      // textStream was empty — try the full text promise as fallback
+      // (some provider errors only surface here)
+      try {
+        const fullText = await result.text;
+        if (fullText) {
+          yield fullText;
+          return;
+        }
+      } catch (textErr) {
+        const msg = textErr instanceof Error ? textErr.message : String(textErr);
+        throw new Error(`AI provider error: ${msg}`);
+      }
+    }
+
     if (!hasChunks && streamError) {
       const msg = streamError instanceof Error ? streamError.message : String(streamError);
       throw new Error(`AI provider error: ${msg}`);
     }
     if (!hasChunks) {
-      throw new Error('AI provider returned an empty response. Check your API key and model configuration.');
+      throw new Error(
+        `AI provider returned an empty response. The model "${personality.modelName}" may not be available on your account. ` +
+        'Check your API key, model access, and billing at your provider dashboard.',
+      );
     }
   }
 

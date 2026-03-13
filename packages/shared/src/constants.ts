@@ -47,8 +47,9 @@ export const MODEL_OPTIONS: Record<string, { value: string; label: string }[]> =
     { value: 'claude-sonnet-4-5-20250514', label: 'Claude Sonnet 4.5' },
   ],
   openai: [
-    { value: 'gpt-5-nano', label: 'GPT-5 Nano' },
-    { value: 'gpt-5-mini', label: 'GPT-5 Mini' },
+    { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
+    { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano' },
+    { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
   ],
 };
 
