@@ -32,9 +32,56 @@
 
 ## Deploy to Railway
 
-The fastest way to get Anima AI running in production. Railway provisions PostgreSQL, Redis, and all three services automatically.
+One-click deploy to [Railway](https://railway.com/) — provisions PostgreSQL, Redis, and all three services automatically. You just provide your API key.
 
-### 1. Create the services on Railway
+<!-- TODO: Replace TEMPLATE_ID with your actual Railway template ID after creating it -->
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template/TEMPLATE_ID)
+
+### What you'll need
+
+| What | Where to get it |
+|------|-----------------|
+| A Railway account | [railway.com](https://railway.com/) (free tier available) |
+| An LLM API key | [Anthropic](https://console.anthropic.com/) or [OpenAI](https://platform.openai.com/api-keys) (at least one) |
+
+### What happens when you click Deploy
+
+Railway automatically creates everything defined in [`railway.yml`](railway.yml):
+
+- **PostgreSQL** database
+- **Redis** instance
+- **web** — Next.js admin dashboard + public chat UI
+- **chat-api** — Hono SSE streaming API
+- **worker** — BullMQ document processing pipeline
+
+`AUTH_SECRET` and `ENCRYPTION_KEY` are **auto-generated** as shared variables. Database and Redis URLs are wired automatically via Railway's reference variables.
+
+### After deploying
+
+1. **Paste your API key** — In Railway, go to your project's shared variables and add `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` (the deploy will prompt you for this)
+2. **Wait for the first build** (~2-3 minutes) — migrations run automatically
+3. **Visit your web URL** — create your first admin account
+4. **Upload a document** and start chatting
+
+### Creating the Railway template (maintainers only)
+
+The deploy button above requires a Railway template. To create or update it:
+
+1. Deploy the project manually on Railway (see [manual setup](#manual-railway-setup) below)
+2. Go to project **Settings → Generate Template from Project**
+3. Railway will capture all services, databases, and variable definitions
+4. Copy the template ID and update the deploy button URL in this README
+
+> The per-service `railway.toml` files in each app directory handle build and deploy configuration automatically.
+
+### Manual Railway setup
+
+If you prefer to set up manually instead of using the template:
+
+<details>
+<summary>Click to expand manual setup steps</summary>
+
+#### 1. Create services
 
 From your [Railway dashboard](https://railway.com/dashboard), create a new project and add:
 
@@ -46,36 +93,32 @@ From your [Railway dashboard](https://railway.com/dashboard), create a new proje
 | **chat-api** | GitHub repo → `main` branch | `apps/chat-api` |
 | **worker** | GitHub repo → `main` branch | `apps/worker` |
 
-Each app service already has a `railway.toml` with the correct build and start commands.
+Each app has a `railway.toml` with the correct build and start commands — no configuration needed.
 
-### 2. Generate secrets
-
-You need two secrets. Run these locally (or in any terminal):
+#### 2. Generate secrets
 
 ```bash
-# AUTH_SECRET — random 32-character string (shared across all services)
+# AUTH_SECRET — random string for signing sessions
 openssl rand -base64 32
-# Example output: K7xB3mQ9v2nR8wL5pY1hT6jA4cF0eD3g
 
-# ENCRYPTION_KEY — 64-character hex string (for encrypting stored API keys)
+# ENCRYPTION_KEY — 64-char hex for encrypting stored API keys
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-# Example output: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2
 ```
 
-> **Important:** `AUTH_SECRET` must be identical across **web**, **chat-api**, and **worker** — otherwise sessions and API key decryption will break. Use Railway's [shared variables](https://docs.railway.com/variables) to set it once and reference it everywhere.
+#### 3. Add shared variables
 
-### 3. Configure variables
+In Railway: project **Settings → Shared Variables**. All services inherit these automatically.
 
-Add these as **shared variables** in your Railway project (Settings → Shared Variables), so all services inherit them:
+| Variable | Value |
+|----------|-------|
+| `AUTH_SECRET` | Paste the output from `openssl rand -base64 32` |
+| `ENCRYPTION_KEY` | Paste the output from the `node` command above |
+| `ANTHROPIC_API_KEY` | Your key from [console.anthropic.com](https://console.anthropic.com/) |
+| `OPENAI_API_KEY` | *(optional)* Your key from [platform.openai.com](https://platform.openai.com/api-keys) |
 
-| Variable | Value | How to get it |
-|----------|-------|---------------|
-| `AUTH_SECRET` | Your generated secret | `openssl rand -base64 32` |
-| `ENCRYPTION_KEY` | Your generated hex key | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
-| `ANTHROPIC_API_KEY` | Your Anthropic key | [console.anthropic.com](https://console.anthropic.com/) |
-| `OPENAI_API_KEY` | Your OpenAI key (optional) | [platform.openai.com](https://platform.openai.com/api-keys) |
+> **`AUTH_SECRET` must be identical across all services** — if they differ, sessions and API key decryption will silently fail. Shared variables handle this automatically.
 
-Then add these **per-service variables** using Railway's reference syntax:
+#### 4. Add per-service variables
 
 **web:**
 | Variable | Value |
@@ -98,24 +141,19 @@ Then add these **per-service variables** using Railway's reference syntax:
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
 | `REDIS_URL` | `${{Redis.REDIS_URL}}` |
 
-### 4. Enable public networking
+#### 5. Enable public networking
 
-In Railway, click each service and enable **Public Networking** under Settings → Networking:
-- **web** — this is your main URL (e.g. `your-app.up.railway.app`)
-- **chat-api** — the streaming API needs its own public domain
+Settings → Networking → enable **Public Networking** for:
+- **web** — your main URL (e.g. `your-app.up.railway.app`)
+- **chat-api** — streaming API needs its own public domain
 
 The **worker** does NOT need public networking.
 
-### 5. Deploy
+#### 6. Deploy
 
-Push to your `main` branch or click **Deploy** in Railway. The first deploy will:
-1. Install dependencies and build all packages
-2. Run database migrations automatically (via Next.js instrumentation)
-3. Start all three services
+Push to `main` or click **Deploy**. Migrations run automatically on first boot.
 
-Visit your web service's public URL to create your first admin account.
-
-> See [`railway.yml`](railway.yml) for the full service topology reference.
+</details>
 
 ---
 
@@ -509,7 +547,7 @@ Each event carries a JSON payload. The client connects with an `X-Session-Token`
 
 ### Option 1: Railway (Recommended)
 
-See the [Deploy to Railway](#deploy-to-railway) section at the top of this README for a complete step-by-step guide. Railway provisions PostgreSQL, Redis, and all three services with a few clicks. The [`railway.yml`](railway.yml) file documents the full service topology.
+One-click deploy with the [Railway button](#deploy-to-railway) at the top of this README. Everything is provisioned automatically.
 
 ### Option 2: Docker Compose (Self-Hosted)
 
