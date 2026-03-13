@@ -107,6 +107,11 @@ export async function ragPipeline(
     { role: 'user' as const, content: query },
   ];
 
+  // Capture streaming errors so they can be surfaced to the client.
+  // The Vercel AI SDK may silently swallow provider errors (e.g. quota
+  // exceeded, invalid model) and return an empty stream with zero chunks.
+  let streamError: unknown = null;
+
   const result = streamText({
     model,
     system: systemPrompt,
@@ -115,11 +120,35 @@ export async function ragPipeline(
     maxTokens: personality.guardrails.maxResponseLength,
     onError: ({ error }) => {
       console.error('[rag-pipeline] streamText error:', error);
+      streamError = error;
     },
   });
 
+  // Wrap textStream to re-throw captured errors and detect empty streams
+  async function* safeTextStream(): AsyncGenerator<string> {
+    let hasChunks = false;
+    try {
+      for await (const chunk of result.textStream) {
+        hasChunks = true;
+        yield chunk;
+      }
+    } catch (err) {
+      // Re-throw stream iteration errors with a user-friendly message
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`AI provider error: ${msg}`);
+    }
+    // If the provider silently failed, surface the captured error
+    if (!hasChunks && streamError) {
+      const msg = streamError instanceof Error ? streamError.message : String(streamError);
+      throw new Error(`AI provider error: ${msg}`);
+    }
+    if (!hasChunks) {
+      throw new Error('AI provider returned an empty response. Check your API key and model configuration.');
+    }
+  }
+
   return {
-    textStream: result.textStream,
+    textStream: safeTextStream(),
     citations,
   };
 }
