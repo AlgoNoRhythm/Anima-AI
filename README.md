@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/anima-ai/anima-ai/blob/main/LICENSE"><img alt="License: GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-blue.svg" /></a>
+  <a href="https://github.com/anima-ai/anima-ai/blob/main/LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
   <a href="https://nodejs.org/"><img alt="Node.js 18+" src="https://img.shields.io/badge/node-18%2B-green.svg" /></a>
   <a href="https://pnpm.io/"><img alt="pnpm" src="https://img.shields.io/badge/pnpm-9%2B-F69220.svg" /></a>
 </p>
@@ -34,8 +34,7 @@
 
 One-click deploy to [Railway](https://railway.com/) — provisions PostgreSQL, Redis, and all three services automatically. You just provide your API key.
 
-<!-- TODO: Replace TEMPLATE_ID with your actual Railway template ID after creating it -->
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template/TEMPLATE_ID)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/-EmfAu?referralCode=h5rnxY&utm_medium=integration&utm_source=template&utm_campaign=generic)
 
 ### What you'll need
 
@@ -46,7 +45,7 @@ One-click deploy to [Railway](https://railway.com/) — provisions PostgreSQL, R
 
 ### What happens when you click Deploy
 
-Railway automatically creates everything defined in [`railway.yml`](railway.yml):
+Railway automatically provisions:
 
 - **PostgreSQL** database
 - **Redis** instance
@@ -58,21 +57,10 @@ Railway automatically creates everything defined in [`railway.yml`](railway.yml)
 
 ### After deploying
 
-1. **Paste your API key** — In Railway, go to your project's shared variables and add `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` (the deploy will prompt you for this)
+1. **Add your API key** — Go to **Settings** in the web UI and add your [Anthropic](https://console.anthropic.com/) or [OpenAI](https://platform.openai.com/api-keys) key (or set `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` as a shared variable in Railway)
 2. **Wait for the first build** (~2-3 minutes) — migrations run automatically
 3. **Visit your web URL** — create your first admin account
 4. **Upload a document** and start chatting
-
-### Creating the Railway template (maintainers only)
-
-The deploy button above requires a Railway template. To create or update it:
-
-1. Deploy the project manually on Railway (see [manual setup](#manual-railway-setup) below)
-2. Go to project **Settings → Generate Template from Project**
-3. Railway will capture all services, databases, and variable definitions
-4. Copy the template ID and update the deploy button URL in this README
-
-> The per-service `railway.toml` files in each app directory handle build and deploy configuration automatically.
 
 ### Manual Railway setup
 
@@ -682,4 +670,4 @@ See the [open issues](https://github.com/anima-ai/anima-ai/issues) for ideas.
 
 ## License
 
-[GPL-3.0](LICENSE) -- free to use, modify, and distribute. Contributions must use the same license.
+[MIT](LICENSE) — free to use, modify, and distribute.
