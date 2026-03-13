@@ -32,20 +32,11 @@
 
 ## Deploy to Railway
 
-One-click deploy to [Railway](https://railway.com/) — provisions PostgreSQL, Redis, and all three services automatically. You just provide your API key.
+One-click deploy to [Railway](https://railway.com/) — provisions PostgreSQL, Redis, and all three services automatically.
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/-EmfAu?referralCode=h5rnxY&utm_medium=integration&utm_source=template&utm_campaign=generic)
 
-### What you'll need
-
-| What | Where to get it |
-|------|-----------------|
-| A Railway account | [railway.com](https://railway.com/) (free tier available) |
-| An LLM API key | [Anthropic](https://console.anthropic.com/) or [OpenAI](https://platform.openai.com/api-keys) (at least one) |
-
-### What happens when you click Deploy
-
-Railway automatically provisions:
+### What gets provisioned
 
 - **PostgreSQL** database
 - **Redis** instance
@@ -53,95 +44,14 @@ Railway automatically provisions:
 - **chat-api** — Hono SSE streaming API
 - **worker** — BullMQ document processing pipeline
 
-`AUTH_SECRET` and `ENCRYPTION_KEY` are **auto-generated** as shared variables. Database and Redis URLs are wired automatically via Railway's reference variables.
+All secrets (`AUTH_SECRET`, `ENCRYPTION_KEY`) and database URLs are auto-generated and wired between services.
 
 ### After deploying
 
-1. **Add your API key** — Go to **Settings** in the web UI and add your [Anthropic](https://console.anthropic.com/) or [OpenAI](https://platform.openai.com/api-keys) key (or set `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` as a shared variable in Railway)
-2. **Wait for the first build** (~2-3 minutes) — migrations run automatically
-3. **Visit your web URL** — create your first admin account
+1. **Wait for the first build** (~2-3 minutes) — migrations run automatically
+2. **Visit your web URL** — create your first admin account
+3. **Add your API key** — Go to **Settings** in the web UI and add your [Anthropic](https://console.anthropic.com/) or [OpenAI](https://platform.openai.com/api-keys) key
 4. **Upload a document** and start chatting
-
-### Manual Railway setup
-
-If you prefer to set up manually instead of using the template:
-
-<details>
-<summary>Click to expand manual setup steps</summary>
-
-#### 1. Create services
-
-From your [Railway dashboard](https://railway.com/dashboard), create a new project and add:
-
-| Service | Source | Root Directory |
-|---------|--------|----------------|
-| **Postgres** | Add Database → PostgreSQL | -- |
-| **Redis** | Add Database → Redis | -- |
-| **web** | GitHub repo → `main` branch | `apps/web` |
-| **chat-api** | GitHub repo → `main` branch | `apps/chat-api` |
-| **worker** | GitHub repo → `main` branch | `apps/worker` |
-
-Each app has a `railway.toml` with the correct build and start commands — no configuration needed.
-
-#### 2. Generate secrets
-
-```bash
-# AUTH_SECRET — random string for signing sessions
-openssl rand -base64 32
-
-# ENCRYPTION_KEY — 64-char hex for encrypting stored API keys
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-#### 3. Add shared variables
-
-In Railway: project **Settings → Shared Variables**. All services inherit these automatically.
-
-| Variable | Value |
-|----------|-------|
-| `AUTH_SECRET` | Paste the output from `openssl rand -base64 32` |
-| `ENCRYPTION_KEY` | Paste the output from the `node` command above |
-| `ANTHROPIC_API_KEY` | Your key from [console.anthropic.com](https://console.anthropic.com/) |
-| `OPENAI_API_KEY` | *(optional)* Your key from [platform.openai.com](https://platform.openai.com/api-keys) |
-
-> **`AUTH_SECRET` must be identical across all services** — if they differ, sessions and API key decryption will silently fail. Shared variables handle this automatically.
-
-#### 4. Add per-service variables
-
-**web:**
-| Variable | Value |
-|----------|-------|
-| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
-| `REDIS_URL` | `${{Redis.REDIS_URL}}` |
-| `AUTH_URL` | `https://${{RAILWAY_PUBLIC_DOMAIN}}` |
-| `NEXT_PUBLIC_CHAT_API_URL` | `https://` + the chat-api public domain |
-
-**chat-api:**
-| Variable | Value |
-|----------|-------|
-| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
-| `REDIS_URL` | `${{Redis.REDIS_URL}}` |
-| `CORS_ORIGIN` | `https://` + the web public domain |
-
-**worker:**
-| Variable | Value |
-|----------|-------|
-| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
-| `REDIS_URL` | `${{Redis.REDIS_URL}}` |
-
-#### 5. Enable public networking
-
-Settings → Networking → enable **Public Networking** for:
-- **web** — your main URL (e.g. `your-app.up.railway.app`)
-- **chat-api** — streaming API needs its own public domain
-
-The **worker** does NOT need public networking.
-
-#### 6. Deploy
-
-Push to `main` or click **Deploy**. Migrations run automatically on first boot.
-
-</details>
 
 ---
 
