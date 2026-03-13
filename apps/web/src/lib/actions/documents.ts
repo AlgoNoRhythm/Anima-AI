@@ -129,7 +129,7 @@ export async function uploadDocument(projectId: string, formData: FormData) {
     const personality = await personalityQueries(db).findByProjectId(projectId);
     let provider = (personality?.modelProvider ?? DEFAULT_MODEL_PROVIDER) as string;
 
-    // Retrieve API key for indexing: stored key (Settings) takes priority over env var
+    // Resolve API key: stored(pref) > env(pref) > stored(alt) > env(alt)
     let indexingApiKey: string | undefined;
     try {
       const storedKey = await apiKeyQueries(db).findByUserAndProvider(userId, provider);
@@ -140,14 +140,30 @@ export async function uploadDocument(projectId: string, formData: FormData) {
       log.warn('Failed to retrieve stored API key', { error: keyErr instanceof Error ? keyErr.message : String(keyErr) });
     }
 
-    // Fall back to env var — prefer the project's provider, then try the other
+    // Try env var for preferred provider
     if (!indexingApiKey) {
-      if (provider === 'anthropic') {
-        indexingApiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY;
-        if (!process.env.ANTHROPIC_API_KEY && process.env.OPENAI_API_KEY) provider = 'openai';
-      } else {
-        indexingApiKey = process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY;
-        if (!process.env.OPENAI_API_KEY && process.env.ANTHROPIC_API_KEY) provider = 'anthropic';
+      const envKey = provider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
+      if (envKey) {
+        indexingApiKey = envKey;
+      }
+    }
+
+    // Fall back to alternate provider (stored key, then env var)
+    if (!indexingApiKey) {
+      const altProvider = provider === 'anthropic' ? 'openai' : 'anthropic';
+      try {
+        const altKey = await apiKeyQueries(db).findByUserAndProvider(userId, altProvider);
+        if (altKey) {
+          indexingApiKey = decryptApiKey(altKey.encryptedKey);
+          provider = altProvider;
+        }
+      } catch { /* fall through */ }
+      if (!indexingApiKey) {
+        const altEnv = altProvider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
+        if (altEnv) {
+          indexingApiKey = altEnv;
+          provider = altProvider;
+        }
       }
     }
 
@@ -284,7 +300,7 @@ export async function reprocessDocument(documentId: string) {
       return { success: false, error: 'Original file not found in storage' };
     }
 
-    // Determine provider and API key for reprocessing
+    // Resolve API key: stored(pref) > env(pref) > stored(alt) > env(alt)
     const personality = await personalityQueries(db).findByProjectId(doc.projectId);
     let reProvider = (personality?.modelProvider ?? DEFAULT_MODEL_PROVIDER) as string;
     let reApiKey: string | undefined;
@@ -293,14 +309,30 @@ export async function reprocessDocument(documentId: string) {
       if (storedKey) {
         reApiKey = decryptApiKey(storedKey.encryptedKey);
       }
-    } catch { /* fall through to env */ }
+    } catch { /* fall through */ }
+
     if (!reApiKey) {
-      if (reProvider === 'anthropic') {
-        reApiKey = process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY;
-        if (!process.env.ANTHROPIC_API_KEY && process.env.OPENAI_API_KEY) reProvider = 'openai';
-      } else {
-        reApiKey = process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY;
-        if (!process.env.OPENAI_API_KEY && process.env.ANTHROPIC_API_KEY) reProvider = 'anthropic';
+      const envKey = reProvider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
+      if (envKey) {
+        reApiKey = envKey;
+      }
+    }
+
+    if (!reApiKey) {
+      const altProvider = reProvider === 'anthropic' ? 'openai' : 'anthropic';
+      try {
+        const altKey = await apiKeyQueries(db).findByUserAndProvider(userId, altProvider);
+        if (altKey) {
+          reApiKey = decryptApiKey(altKey.encryptedKey);
+          reProvider = altProvider;
+        }
+      } catch { /* fall through */ }
+      if (!reApiKey) {
+        const altEnv = altProvider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
+        if (altEnv) {
+          reApiKey = altEnv;
+          reProvider = altProvider;
+        }
       }
     }
 

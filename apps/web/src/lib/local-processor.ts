@@ -1,6 +1,7 @@
-import { createDatabase, documentQueries, chunkQueries, analyticsQueries } from '@anima-ai/database';
+import { createDatabase, documentQueries, chunkQueries, analyticsQueries, projectQueries, apiKeyQueries } from '@anima-ai/database';
 import { buildDocumentTree, DEFAULT_PAGE_INDEX_CONFIG } from '@anima-ai/ai';
 import { MODEL_OPTIONS, createLogger } from '@anima-ai/shared';
+import { decryptApiKey } from '@anima-ai/shared/crypto';
 import type { PageContent } from '@anima-ai/ai';
 
 const log = createLogger('local-processor');
@@ -154,24 +155,67 @@ export async function processDocumentLocally(documentId: string, pdfBuffer: Buff
       })),
     );
 
-    // Build tree index — use the project's configured provider, fall back if no key available
+    // Build tree index — resolve API key: passed key > stored(pref) > env(pref) > stored(alt) > env(alt)
     let resolvedProvider = (process.env.INDEXING_PROVIDER || provider || DEFAULT_PAGE_INDEX_CONFIG.provider) as 'openai' | 'anthropic';
-    if (!apiKey) {
-      const preferredEnvKey = resolvedProvider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
-      if (!preferredEnvKey) {
-        const altProvider = resolvedProvider === 'anthropic' ? 'openai' : 'anthropic';
-        const altEnvKey = altProvider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
-        if (altEnvKey) {
+    let resolvedApiKey = apiKey;
+
+    // Look up the project owner's stored API key from the database
+    if (!resolvedApiKey) {
+      try {
+        const doc = await docs.findById(documentId);
+        if (doc) {
+          const project = await projectQueries(db).findById(doc.projectId);
+          if (project) {
+            const storedKey = await apiKeyQueries(db).findByUserAndProvider(project.userId, resolvedProvider);
+            if (storedKey) {
+              resolvedApiKey = decryptApiKey(storedKey.encryptedKey);
+            }
+          }
+        }
+      } catch (keyErr) {
+        log.warn('Failed to retrieve stored API key', { error: keyErr instanceof Error ? keyErr.message : String(keyErr) });
+      }
+    }
+
+    // Try env var for preferred provider
+    if (!resolvedApiKey) {
+      const envKey = resolvedProvider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
+      if (envKey) {
+        resolvedApiKey = envKey;
+      }
+    }
+
+    // Fall back to alternate provider (stored key, then env var)
+    if (!resolvedApiKey) {
+      const altProvider = resolvedProvider === 'anthropic' ? 'openai' : 'anthropic';
+      try {
+        const doc = await docs.findById(documentId);
+        if (doc) {
+          const project = await projectQueries(db).findById(doc.projectId);
+          if (project) {
+            const altKey = await apiKeyQueries(db).findByUserAndProvider(project.userId, altProvider);
+            if (altKey) {
+              resolvedApiKey = decryptApiKey(altKey.encryptedKey);
+              resolvedProvider = altProvider;
+            }
+          }
+        }
+      } catch { /* fall through */ }
+      if (!resolvedApiKey) {
+        const altEnv = altProvider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
+        if (altEnv) {
+          resolvedApiKey = altEnv;
           resolvedProvider = altProvider;
         }
       }
     }
+
     const defaultModelForProvider = MODEL_OPTIONS[resolvedProvider]?.[0]?.value ?? DEFAULT_PAGE_INDEX_CONFIG.model;
     const config = {
       ...DEFAULT_PAGE_INDEX_CONFIG,
       provider: resolvedProvider,
       model: process.env.INDEXING_MODEL || defaultModelForProvider,
-      apiKey,
+      apiKey: resolvedApiKey,
     };
 
     const result = await buildDocumentTree(pageContents, documentId, config);

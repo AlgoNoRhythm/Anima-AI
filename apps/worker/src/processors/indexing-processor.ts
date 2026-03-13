@@ -1,6 +1,7 @@
 import type { Job } from 'bullmq';
 import type { IndexingJobData } from '../queues.js';
 import { createLogger, MODEL_OPTIONS } from '@anima-ai/shared';
+import { decryptApiKey } from '@anima-ai/shared/crypto';
 
 const log = createLogger('indexing-processor');
 
@@ -55,22 +56,64 @@ export async function processIndexing(job: Job<IndexingJobData>) {
 
     await job.updateProgress(20);
 
-    // Build the document tree — use the project's provider, fall back if no key available
+    // Build the document tree — resolve API key: stored(pref) > env(pref) > stored(alt) > env(alt)
     let resolvedProvider = (process.env.INDEXING_PROVIDER || provider || DEFAULT_PAGE_INDEX_CONFIG.provider) as 'openai' | 'anthropic';
-    const preferredEnvKey = resolvedProvider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
-    if (!preferredEnvKey) {
-      const altProvider = resolvedProvider === 'anthropic' ? 'openai' : 'anthropic';
-      const altEnvKey = altProvider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
-      if (altEnvKey) {
-        log.info('Switching to available provider', { from: resolvedProvider, to: altProvider });
-        resolvedProvider = altProvider;
+    let indexingApiKey: string | undefined;
+
+    // Look up the project owner's stored API key from the database
+    let projectUserId: string | undefined;
+    try {
+      const { projectQueries, apiKeyQueries } = await import('@anima-ai/database');
+      const project = await projectQueries(db).findById(job.data.projectId);
+      if (project) {
+        projectUserId = project.userId;
+        const storedKey = await apiKeyQueries(db).findByUserAndProvider(project.userId, resolvedProvider);
+        if (storedKey) {
+          indexingApiKey = decryptApiKey(storedKey.encryptedKey);
+        }
+      }
+    } catch (err) {
+      log.warn('Failed to retrieve stored API key', { error: err instanceof Error ? err.message : String(err) });
+    }
+
+    // Try env var for preferred provider
+    if (!indexingApiKey) {
+      const envKey = resolvedProvider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
+      if (envKey) {
+        indexingApiKey = envKey;
       }
     }
+
+    // Fall back to alternate provider (stored key, then env var)
+    if (!indexingApiKey) {
+      const altProvider = resolvedProvider === 'anthropic' ? 'openai' : 'anthropic';
+      if (projectUserId) {
+        try {
+          const { apiKeyQueries } = await import('@anima-ai/database');
+          const altKey = await apiKeyQueries(db).findByUserAndProvider(projectUserId, altProvider);
+          if (altKey) {
+            indexingApiKey = decryptApiKey(altKey.encryptedKey);
+            resolvedProvider = altProvider;
+            log.info('Using stored key from alternate provider', { from: provider, to: altProvider });
+          }
+        } catch { /* fall through */ }
+      }
+      if (!indexingApiKey) {
+        const altEnv = altProvider === 'anthropic' ? process.env.ANTHROPIC_API_KEY : process.env.OPENAI_API_KEY;
+        if (altEnv) {
+          indexingApiKey = altEnv;
+          resolvedProvider = altProvider;
+          log.info('Switching to available env provider', { from: provider, to: altProvider });
+        }
+      }
+    }
+
     const defaultModelForProvider = MODEL_OPTIONS[resolvedProvider]?.[0]?.value ?? DEFAULT_PAGE_INDEX_CONFIG.model;
     const config = {
       ...DEFAULT_PAGE_INDEX_CONFIG,
       provider: resolvedProvider,
       model: process.env.INDEXING_MODEL || defaultModelForProvider,
+      apiKey: indexingApiKey,
     };
 
     log.info('Building document tree', { documentId, pageCount: docPages.length });

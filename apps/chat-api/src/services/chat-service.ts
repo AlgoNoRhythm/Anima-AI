@@ -1,48 +1,10 @@
-import { createDecipheriv } from 'node:crypto';
 import { createDatabase, projectQueries, personalityQueries, documentQueries, messageQueries, apiKeyQueries } from '@anima-ai/database';
 import { ragPipeline } from '@anima-ai/ai';
 import type { PersonalityConfig, Guardrails } from '@anima-ai/ai';
 import { DEFAULT_PERSONALITY, DEFAULT_GUARDRAILS, MODEL_OPTIONS, createLogger } from '@anima-ai/shared';
+import { decryptApiKey } from '@anima-ai/shared/crypto';
 import { createCacheClient, getCachedProject, setCachedProject, getCachedProjectMeta, setCachedProjectMeta } from '@anima-ai/cache';
 import { queueAnalyticsEvent } from './analytics-buffer.js';
-
-const log = createLogger('chat-service');
-const cache = createCacheClient();
-
-const ALGORITHM = 'aes-256-gcm';
-
-function getEncryptionKey(): Buffer {
-  const key = process.env.ENCRYPTION_KEY;
-  if (!key) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(
-        'ENCRYPTION_KEY environment variable must be set in production.',
-      );
-    }
-    const fallback = process.env.AUTH_SECRET ?? 'dev-encryption-key-not-for-production';
-    return Buffer.from(fallback.padEnd(32, '0').slice(0, 32));
-  }
-  if (key.length !== 64) {
-    throw new Error('ENCRYPTION_KEY must be a 64-character hex string (32 bytes)');
-  }
-  return Buffer.from(key, 'hex');
-}
-
-function decryptApiKey(ciphertext: string): string {
-  const parts = ciphertext.split(':');
-  if (parts.length !== 3) {
-    throw new Error('Invalid encrypted key format');
-  }
-  const [ivHex, encryptedHex, authTagHex] = parts;
-  const encKey = getEncryptionKey();
-  const iv = Buffer.from(ivHex!, 'hex');
-  const authTag = Buffer.from(authTagHex!, 'hex');
-  const decipher = createDecipheriv(ALGORITHM, encKey, iv);
-  decipher.setAuthTag(authTag);
-  let decrypted = decipher.update(encryptedHex!, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
-}
 
 export interface ChatHistoryMessage {
   role: 'user' | 'assistant';
