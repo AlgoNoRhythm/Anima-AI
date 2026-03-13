@@ -152,6 +152,7 @@ export function QRGenerator({ projectId, projectSlug, initialConfig, lanIp }: QR
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const qrRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -377,9 +378,34 @@ export function QRGenerator({ projectId, projectSlug, initialConfig, lanIp }: QR
         <section className="border-t pt-6">
           <div className="rounded-lg border bg-muted/50 px-3 py-2">
             <p className="text-xs text-muted-foreground mb-0.5">Chat URL (encoded in QR)</p>
-            <p className="text-sm font-mono truncate">
-              {getChatUrl() || `/c/${projectSlug}`}
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-mono truncate flex-1">
+                {getChatUrl() || `/c/${projectSlug}`}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  const url = getChatUrl() || `/c/${projectSlug}`;
+                  navigator.clipboard.writeText(url).then(() => {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  });
+                }}
+                className="flex-shrink-0 rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-all"
+                title="Copy URL"
+              >
+                {copied ? (
+                  <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
         </section>
 
