@@ -10,6 +10,7 @@
 </p>
 
 <p align="center">
+  <a href="#deploy-to-railway">Deploy to Railway</a> &middot;
   <a href="#quick-start">Quick Start</a> &middot;
   <a href="#how-it-works">How It Works</a> &middot;
   <a href="#use-cases">Use Cases</a> &middot;
@@ -18,8 +19,103 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/anima-ai/anima-ai/blob/main/LICENSE"><img alt="License: GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-blue.svg" /></a>
+  <a href="https://nodejs.org/"><img alt="Node.js 18+" src="https://img.shields.io/badge/node-18%2B-green.svg" /></a>
+  <a href="https://pnpm.io/"><img alt="pnpm" src="https://img.shields.io/badge/pnpm-9%2B-F69220.svg" /></a>
+</p>
+
+<p align="center">
   <img src="assets/hero.gif" alt="Anima AI Demo" />
 </p>
+
+---
+
+## Deploy to Railway
+
+The fastest way to get Anima AI running in production. Railway provisions PostgreSQL, Redis, and all three services automatically.
+
+### 1. Create the services on Railway
+
+From your [Railway dashboard](https://railway.com/dashboard), create a new project and add:
+
+| Service | Source | Root Directory |
+|---------|--------|----------------|
+| **Postgres** | Add Database → PostgreSQL | -- |
+| **Redis** | Add Database → Redis | -- |
+| **web** | GitHub repo → `main` branch | `apps/web` |
+| **chat-api** | GitHub repo → `main` branch | `apps/chat-api` |
+| **worker** | GitHub repo → `main` branch | `apps/worker` |
+
+Each app service already has a `railway.toml` with the correct build and start commands.
+
+### 2. Generate secrets
+
+You need two secrets. Run these locally (or in any terminal):
+
+```bash
+# AUTH_SECRET — random 32-character string (shared across all services)
+openssl rand -base64 32
+# Example output: K7xB3mQ9v2nR8wL5pY1hT6jA4cF0eD3g
+
+# ENCRYPTION_KEY — 64-character hex string (for encrypting stored API keys)
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+# Example output: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2
+```
+
+> **Important:** `AUTH_SECRET` must be identical across **web**, **chat-api**, and **worker** — otherwise sessions and API key decryption will break. Use Railway's [shared variables](https://docs.railway.com/variables) to set it once and reference it everywhere.
+
+### 3. Configure variables
+
+Add these as **shared variables** in your Railway project (Settings → Shared Variables), so all services inherit them:
+
+| Variable | Value | How to get it |
+|----------|-------|---------------|
+| `AUTH_SECRET` | Your generated secret | `openssl rand -base64 32` |
+| `ENCRYPTION_KEY` | Your generated hex key | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+| `ANTHROPIC_API_KEY` | Your Anthropic key | [console.anthropic.com](https://console.anthropic.com/) |
+| `OPENAI_API_KEY` | Your OpenAI key (optional) | [platform.openai.com](https://platform.openai.com/api-keys) |
+
+Then add these **per-service variables** using Railway's reference syntax:
+
+**web:**
+| Variable | Value |
+|----------|-------|
+| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
+| `REDIS_URL` | `${{Redis.REDIS_URL}}` |
+| `AUTH_URL` | `https://${{RAILWAY_PUBLIC_DOMAIN}}` |
+| `NEXT_PUBLIC_CHAT_API_URL` | `https://` + the chat-api public domain |
+
+**chat-api:**
+| Variable | Value |
+|----------|-------|
+| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
+| `REDIS_URL` | `${{Redis.REDIS_URL}}` |
+| `CORS_ORIGIN` | `https://` + the web public domain |
+
+**worker:**
+| Variable | Value |
+|----------|-------|
+| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
+| `REDIS_URL` | `${{Redis.REDIS_URL}}` |
+
+### 4. Enable public networking
+
+In Railway, click each service and enable **Public Networking** under Settings → Networking:
+- **web** — this is your main URL (e.g. `your-app.up.railway.app`)
+- **chat-api** — the streaming API needs its own public domain
+
+The **worker** does NOT need public networking.
+
+### 5. Deploy
+
+Push to your `main` branch or click **Deploy** in Railway. The first deploy will:
+1. Install dependencies and build all packages
+2. Run database migrations automatically (via Next.js instrumentation)
+3. Start all three services
+
+Visit your web service's public URL to create your first admin account.
+
+> See [`railway.yml`](railway.yml) for the full service topology reference.
 
 ---
 
@@ -31,13 +127,13 @@ Think of it as giving a voice to objects that can't speak for themselves.
 
 ### Key Features
 
-- **Document Upload & Processing** -- Drag-and-drop upload (PDF, TXT, MD, HTML, DOCX). PDFs are parsed into per-page text via `pdf-parse` (with optional Docling service for higher-fidelity structure extraction).
+- **Document Upload & Processing** -- Drag-and-drop upload (PDF, TXT, MD, HTML, DOCX). PDFs are parsed into per-page text via [`pdf-parse`](https://www.npmjs.com/package/pdf-parse) (with optional [Docling](https://github.com/DS4SD/docling) service for higher-fidelity structure extraction).
 - **RAG-Powered Chat (PageIndex)** -- Retrieval-Augmented Generation using **PageIndex**, a custom RAG system that replaces traditional vector embeddings with an LLM-driven hierarchical page index. At indexing time, an LLM builds a tree of document sections with titles, summaries, and page ranges. At query time, the LLM searches the tree structure to find the most relevant nodes -- with automatic citation of source pages. No embedding model or vector database required.
 - **Streaming Responses with Markdown** -- Real-time SSE streaming with full markdown rendering (bold, lists, code blocks, tables) in chat bubbles.
 - **Customizable Personality** -- Define system prompts, tone (professional, friendly, casual, formal, technical), temperature, guardrails, blocked topics, and suggested questions. Personality name and disclaimer text are translatable.
 - **Theme Editor** -- Brand your chatbot with custom colors, fonts, logos, border radius, welcome messages, and action button labels. Live preview in the admin dashboard. All user-facing text (welcome message, action button label, suggested questions) is translatable per language.
 - **Feedback Surveys** -- Configure post-conversation feedback with star ratings and free-text questions. Each rating and question is individually toggleable as required/optional. Responses are collected per session and viewable in the analytics dashboard.
-- **QR Code Generator** -- Create styled QR codes (square, dots, rounded) with custom colors, title, and subtitle. Download as SVG or PNG.
+- **QR Code Generator** -- Create styled QR codes (square, dots, rounded) with custom colors, title, and subtitle. Download as SVG or PNG. Built with [`qr-code-styling`](https://github.com/nickolay-volkov/qr-code-styling).
 - **Analytics Dashboard** -- Track sessions, messages, and feedback survey responses with time-range filtering and visual charts. Export conversations as CSV.
 - **Multi-Language Chat UI** -- The public chat interface supports English, German, French, and Italian. Language is resolved automatically from `?lang=` query parameter or the browser's `Accept-Language` header. All static UI strings and admin-configured content (welcome messages, suggested questions, personality name, disclaimer, feedback labels) are translatable via language tabs in the admin editors.
 - **Embeddable Widget** -- Embed your chatbot in any website via an iframe. Fully themed and localized.
@@ -45,7 +141,7 @@ Think of it as giving a voice to objects that can't speak for themselves.
 - **Project Modes** -- Configure projects as chat-only, PDF-only, or both. Mode is enforced in both the UI and API.
 - **Per-Project Rate Limiting** -- Set custom rate limits per project via the admin settings. Independent counters per project and user.
 - **Mobile-Optimized Chat** -- Fixed-position app-like layout with iOS keyboard handling, safe-area support, and touch-optimized controls.
-- **Multi-Provider LLM Support** -- Works with Anthropic (default) and OpenAI via Vercel AI SDK. Bring your own API keys per provider.
+- **Multi-Provider LLM Support** -- Works with [Anthropic](https://www.anthropic.com/) (default) and [OpenAI](https://openai.com/) via [Vercel AI SDK](https://ai-sdk.dev/). Bring your own API keys per provider.
 
 ---
 
@@ -136,9 +232,9 @@ QR codes on machinery and equipment. Operators ask about maintenance schedules, 
 
 ### Prerequisites
 
-- **Node.js** 18+ and **pnpm** 9+
-- **Docker** (for PostgreSQL and Valkey)
-- An **Anthropic** or **OpenAI** API key (for LLM-powered indexing and chat)
+- [**Node.js**](https://nodejs.org/) 18+ and [**pnpm**](https://pnpm.io/) 9+
+- [**Docker**](https://www.docker.com/) (for PostgreSQL and Valkey)
+- An [**Anthropic**](https://console.anthropic.com/) or [**OpenAI**](https://platform.openai.com/api-keys) API key (for LLM-powered indexing and chat)
 
 ### Installation
 
@@ -257,13 +353,21 @@ All environment variables are documented in `.env.example`. Here's the full refe
 
 ### Generating Secrets
 
-```bash
-# AUTH_SECRET (random 32+ char string)
-openssl rand -base64 32
+Both secrets are required in production. **`AUTH_SECRET` must be identical** across web, chat-api, and worker services -- if they differ, user sessions and API key decryption will silently fail.
 
-# ENCRYPTION_KEY (64-char hex = 32 bytes)
+```bash
+# AUTH_SECRET — random 32+ character string for signing sessions
+# Must be the SAME value for web, chat-api, and worker
+openssl rand -base64 32
+# Example: K7xB3mQ9v2nR8wL5pY1hT6jA4cF0eD3g...
+
+# ENCRYPTION_KEY — exactly 64 hex characters (32 bytes) for AES-256-GCM
+# Used to encrypt user-provided API keys stored in the database
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+# Example: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2
 ```
+
+Copy the output and paste it into your `.env` file (local) or environment variables (Railway/cloud). Do not wrap in quotes -- paste the raw value.
 
 ### Local `.env` Files
 
@@ -302,19 +406,19 @@ anima-ai/
 
 | Layer | Technology | License |
 |-------|-----------|---------|
-| Frontend | Next.js 15, React 19, Tailwind CSS | MIT |
-| UI Components | shadcn/ui, Radix Primitives, CVA | MIT |
-| Chat API | Hono, Server-Sent Events | MIT |
-| Auth | NextAuth.js v5 (credentials provider) | ISC |
-| Database | PostgreSQL 16, Drizzle ORM | PostgreSQL / MIT |
+| Frontend | [Next.js 15](https://nextjs.org/), [React 19](https://react.dev/), [Tailwind CSS](https://tailwindcss.com/) | MIT |
+| UI Components | [shadcn/ui](https://ui.shadcn.com/), [Radix Primitives](https://www.radix-ui.com/), CVA | MIT |
+| Chat API | [Hono](https://hono.dev/), Server-Sent Events | MIT |
+| Auth | [NextAuth.js v5](https://authjs.dev/) (credentials provider) | ISC |
+| Database | [PostgreSQL 16](https://www.postgresql.org/), [Drizzle ORM](https://orm.drizzle.team/) | PostgreSQL / MIT |
 | Retrieval | PageIndex -- LLM-driven hierarchical page index (no embeddings) | -- |
-| Queue | BullMQ (Redis-backed, in-memory fallback) | MIT |
-| Cache | In-memory / Valkey (Redis-compatible) | MIT / BSD-3 |
-| Storage | Local FS / S3-compatible (R2, SeaweedFS) | MIT |
-| LLM | Vercel AI SDK -- Anthropic (default), OpenAI | Apache-2.0 |
-| PDF Parsing | pdf-parse (JS) + optional Docling (Python sidecar) | MIT |
-| QR Codes | qr-code-styling | MIT |
-| Testing | Vitest + Playwright | MIT |
+| Queue | [BullMQ](https://bullmq.io/) (Redis-backed, in-memory fallback) | MIT |
+| Cache | In-memory / [Valkey](https://valkey.io/) (Redis-compatible) | MIT / BSD-3 |
+| Storage | Local FS / S3-compatible ([Cloudflare R2](https://developers.cloudflare.com/r2/), AWS S3) | MIT |
+| LLM | [Vercel AI SDK](https://ai-sdk.dev/) -- [Anthropic](https://www.anthropic.com/) (default), [OpenAI](https://openai.com/) | Apache-2.0 |
+| PDF Parsing | [pdf-parse](https://www.npmjs.com/package/pdf-parse) (JS) + optional [Docling](https://github.com/DS4SD/docling) (Python sidecar) | MIT |
+| QR Codes | [qr-code-styling](https://github.com/nickolay-volkov/qr-code-styling) | MIT |
+| Testing | [Vitest](https://vitest.dev/) + [Playwright](https://playwright.dev/) | MIT |
 
 ### Data Flow
 
@@ -403,9 +507,13 @@ Each event carries a JSON payload. The client connects with an `X-Session-Token`
 
 ## Deployment
 
-### Option 1: Docker Compose (Full Stack)
+### Option 1: Railway (Recommended)
 
-The easiest way to deploy everything together:
+See the [Deploy to Railway](#deploy-to-railway) section at the top of this README for a complete step-by-step guide. Railway provisions PostgreSQL, Redis, and all three services with a few clicks. The [`railway.yml`](railway.yml) file documents the full service topology.
+
+### Option 2: Docker Compose (Self-Hosted)
+
+The easiest way to self-host everything on a single server:
 
 ```bash
 cd docker
@@ -429,44 +537,44 @@ This brings up:
 | Worker (BullMQ) | -- | Document processing pipeline |
 | Docling (FastAPI) | 8000 | Enhanced PDF parsing (optional) |
 
-### Option 2: Cloud Services
+### Option 3: Cloud Services (Mix & Match)
 
 Deploy each component to managed services:
 
 | Component | Options |
 |-----------|---------|
-| **Database** | Any managed PostgreSQL (Neon, Supabase, RDS, Cloud SQL) |
-| **Cache + Queues** | Any managed Redis-compatible service (Upstash, ElastiCache, Aiven) |
-| **Web App** | Vercel, Railway, Render, Fly.io, or any Node.js host |
-| **Chat API** | Railway, Render, Fly.io, or any container host |
-| **Worker** | Railway, Render, Fly.io, or any long-running container host |
-| **Storage** | Cloudflare R2, AWS S3, or any S3-compatible service |
+| **Database** | Any managed PostgreSQL ([Neon](https://neon.tech/), [Supabase](https://supabase.com/), [AWS RDS](https://aws.amazon.com/rds/), [Cloud SQL](https://cloud.google.com/sql)) |
+| **Cache + Queues** | Any managed Redis-compatible service ([Upstash](https://upstash.com/), [ElastiCache](https://aws.amazon.com/elasticache/), [Aiven](https://aiven.io/)) |
+| **Web App** | [Vercel](https://vercel.com/), [Railway](https://railway.com/), [Render](https://render.com/), [Fly.io](https://fly.io/), or any Node.js host |
+| **Chat API** | [Railway](https://railway.com/), [Render](https://render.com/), [Fly.io](https://fly.io/), or any container host |
+| **Worker** | [Railway](https://railway.com/), [Render](https://render.com/), [Fly.io](https://fly.io/), or any long-running container host |
+| **Storage** | [Cloudflare R2](https://developers.cloudflare.com/r2/), [AWS S3](https://aws.amazon.com/s3/), or any S3-compatible service |
 
-#### Vercel Deployment (Web App Only)
+#### Vercel (Web App Only)
 
-The Next.js web app can be deployed to Vercel. You'll need:
+The Next.js web app can be deployed to [Vercel](https://vercel.com/). You'll need:
 - An external PostgreSQL database (set `DATABASE_URL`)
 - An external Redis/Valkey instance (set `REDIS_URL`) or leave empty for in-memory
-- The chat API deployed separately (set `CHAT_API_URL`)
+- The chat API deployed separately (set `NEXT_PUBLIC_CHAT_API_URL`)
 
 #### Minimum Production Setup
 
 At minimum, you need:
 1. **PostgreSQL** -- any managed instance
 2. **One server** running the web app, chat API, and worker (can be a single $5/mo VPS with Docker Compose)
-3. **An LLM API key** (Anthropic or OpenAI)
+3. **An LLM API key** ([Anthropic](https://console.anthropic.com/) or [OpenAI](https://platform.openai.com/api-keys))
 
 Valkey and S3 storage are optional but recommended for production. Without Valkey, rate limiting uses in-memory counters (lost on restart) and document processing runs synchronously.
 
 ### Production Checklist
 
-- [ ] Set a strong `AUTH_SECRET` (min 32 chars, randomly generated)
-- [ ] Set `ENCRYPTION_KEY` (64-char hex) for API key encryption at rest
+- [ ] Generate `AUTH_SECRET` -- run `openssl rand -base64 32` and use the **same value** for web, chat-api, and worker
+- [ ] Generate `ENCRYPTION_KEY` -- run `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` (must be exactly 64 hex characters)
 - [ ] Set `CORS_ORIGIN` to your actual domain (not `*`)
 - [ ] Set `REDIS_URL` for persistent rate limiting and background job processing
 - [ ] Set `STORAGE_ENDPOINT` for S3-compatible storage (local FS doesn't scale across replicas)
 - [ ] Ensure `DATABASE_URL` points to a production PostgreSQL instance with backups
-- [ ] Run `pnpm db:migrate` against your production database before first deploy
+- [ ] Database migrations run automatically on deploy via Next.js instrumentation
 
 ---
 
@@ -530,8 +638,10 @@ Contributions are welcome! Please:
 4. Run `pnpm test` and `pnpm typecheck` to verify
 5. Submit a pull request
 
+See the [open issues](https://github.com/anima-ai/anima-ai/issues) for ideas.
+
 ---
 
 ## License
 
-GPL-3.0 — see [LICENSE](LICENSE) for details.
+[GPL-3.0](LICENSE) -- free to use, modify, and distribute. Contributions must use the same license.
