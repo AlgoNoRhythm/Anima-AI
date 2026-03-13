@@ -6,6 +6,9 @@ import { decryptApiKey } from '@anima-ai/shared/crypto';
 import { createCacheClient, getCachedProject, setCachedProject, getCachedProjectMeta, setCachedProjectMeta } from '@anima-ai/cache';
 import { queueAnalyticsEvent } from './analytics-buffer.js';
 
+const log = createLogger('chat-service');
+const cache = createCacheClient();
+
 export interface ChatHistoryMessage {
   role: 'user' | 'assistant';
   content: string;
